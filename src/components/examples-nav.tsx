@@ -39,9 +39,17 @@ const examples = [
     name: "Authentication",
     href: "/examples/authentication",
   },
+  {
+    name: "Search",
+    href: "/search",
+  },
+  {
+    name: "Auth",
+    href: "/auth",
+  },
 ]
 
-interface ExamplesNavProps extends React.HTMLAttributes<HTMLDivElement> {}
+interface ExamplesNavProps extends React.HTMLAttributes<HTMLDivElement> { }
 
 export function ExamplesNav({ className, ...props }: ExamplesNavProps) {
   const pathname = usePathname() === "/" ? "/examples/music" : usePathname()

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { invoke } from "@tauri-apps/api/tauri"
 
-export function Greeting() {
+export function Initing() {
   const [greetMsg, setGreetMsg] = useState("")
   const [name, setName] = useState("")
 
