@@ -14,7 +14,8 @@
       {
         "title": "imgsearch-app",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "decorations": false
       }
     ],
     "security": {
@@ -51,8 +52,10 @@
         "deny": []
       }
     },
-    "shell": {
-      "open": true
+    "os": {
+      "permissions": [
+        "all"
+      ]
     }
   }
 }

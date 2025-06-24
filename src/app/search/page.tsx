@@ -1,19 +1,9 @@
 'use client'
-import { Metadata } from "next"
-import Image from "next/image"
-import { PlusCircledIcon } from "@radix-ui/react-icons"
-import { useState, useCallback } from "react"
+import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs"
 
 import { AlbumArtwork } from "./components/album-artwork"
 

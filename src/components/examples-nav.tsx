@@ -47,6 +47,10 @@ const examples = [
     name: "Auth",
     href: "/auth",
   },
+  {
+    name: "Imgdir",
+    href: "/imgdir",
+  },
 ]
 
 interface ExamplesNavProps extends React.HTMLAttributes<HTMLDivElement> { }

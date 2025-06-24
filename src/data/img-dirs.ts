@@ -1,27 +1,31 @@
-import path from "path";
-import { loadFromFile, saveToFile } from ".";
+import { LazyStore, load } from '@tauri-apps/plugin-store';
 
-const ImgDirFilename = "img-dirs.json";
-let ImgDirs: string[] = [];
-export async function loadLocal() {
-    const content = await loadFromFile(ImgDirFilename);
-    if (content) {
-        ImgDirs = JSON.parse(content);
-    }
+export interface ImgDir {
+    name: string
+    path: string
+    enableRename: boolean
 }
 
-export async function addImgDir(imgDir: string) {
+
+const ImgDirStore = new LazyStore('ImgDirStore.json');
+
+export async function getAll(): Promise<ImgDir[]> {
+    return ImgDirStore.values();
+}
+
+export async function addImgDir(imgDir: ImgDir) {
     // 判断imgdirs里面的元素，是否是imgdir的父目录
+
+    const ImgDirs = await getAll();
     ImgDirs.forEach(e => {
-        if (imgDir.startsWith(e) || e.startsWith(imgDir)) {
-            throw new Error("imgdirs already contains a directory that is a parent or child of the specified directory");
+        if (imgDir.path.startsWith(e.path) || e.path.startsWith(imgDir.path)) {
+            throw new Error("Imgdirs already contains a directory that is a parent or child of the specified directory");
         }
     });
-    ImgDirs.push(imgDir);
-    await saveToFile(JSON.stringify(ImgDirs), ImgDirFilename);
+
+    await ImgDirStore.set(imgDir.path, imgDir);
 }
 
-export async function removeImgDir(imgDir: string) {
-    ImgDirs = ImgDirs.filter((dir) => dir !== imgDir);
-    await saveToFile(JSON.stringify(ImgDirs), ImgDirFilename);
+export async function removeImgDir(imgDirPath: string) {
+    await ImgDirStore.delete(imgDirPath);
 }

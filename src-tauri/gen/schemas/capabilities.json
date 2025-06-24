@@ -1,1 +1,1 @@
-{}
+{"default":{"identifier":"default","description":"Capability for the main window","local":true,"windows":["main"],"permissions":["os:default","shell:allow-open","dialog:default","store:default","core:window:default","core:window:allow-start-dragging"]}}

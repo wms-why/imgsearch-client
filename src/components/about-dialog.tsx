@@ -4,6 +4,7 @@ import { useCallback, useState } from "react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { UpdateIcon } from "@radix-ui/react-icons"
 import { GithubIcon, HomeIcon, LucideArrowUpRight } from "lucide-react"
+// import { open } from '@tauri-apps/plugin-dialog';
 
 import { Icons } from "./icons"
 import { Button, buttonVariants } from "./ui/button"
@@ -21,21 +22,6 @@ export function AboutDialog() {
   const [name, setName] = useState("")
   const [tauriVersion, setTauriVersion] = useState("")
   const [arc, setArc] = useState("")
-
-  const getInfos = useCallback(async () => {
-    const { getName, getTauriVersion, getVersion } = await import(
-      "@tauri-apps/plugin-app"
-    )
-    const { arch } = await import("@tauri-apps/plugin-os")
-
-    getName && getName().then((x) => setName(x))
-    getVersion && getVersion().then((x) => setVersion(x))
-    getTauriVersion && getTauriVersion().then((x) => setTauriVersion(x))
-    arch && arch().then((x) => setArc(x))
-  }, [])
-
-  if (typeof window !== "undefined") getInfos()
-
   const open = useCallback(async (url: string) => {
     const { open } = await import("@tauri-apps/plugin-shell")
     open && open(url)

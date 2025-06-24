@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
-import logo from "@/assets/logo.png"
+import logo from "@/assets/icons/32x32.png"
 import { Globe, Mic, Sailboat } from "lucide-react"
 import { WindowControls, WindowTitlebar } from "tauri-controls"
 
@@ -28,10 +28,10 @@ import { AboutDialog } from "./about-dialog"
 import { ExamplesNav } from "./examples-nav"
 import { MenuModeToggle } from "./menu-mode-toggle"
 import { Dialog, DialogTrigger } from "./ui/dialog"
-
 export function Menu() {
   const closeWindow = useCallback(async () => {
-    const { appWindow } = await import("@tauri-apps/plugin-window")
+    const { getCurrentWindow } = await import("@tauri-apps/api/window")
+    const appWindow = getCurrentWindow()
     appWindow.close()
   }, [])
 

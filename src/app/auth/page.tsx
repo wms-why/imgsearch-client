@@ -4,6 +4,7 @@ import Link from "next/link"
 
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
+import logo from "@/assets/icons/128x128.png";
 import { UserAuthForm } from "@/app/examples/authentication/components/user-auth-form"
 
 export const metadata: Metadata = {
@@ -27,7 +28,7 @@ export default function AuthenticationPage() {
         <div className="relative  h-full flex-col bg-zinc-100 p-10 text-zinc-900 border-r lg:flex">
           <div className="absolute inset-0 bg-zinc-200" />
           <div className="relative z-20 flex items-center text-lg font-medium">
-            <Image src={"/icons/128x128.png"} alt="logo" className="mr-2 h-6 w-6" width={16} height={16} />
+            <Image src={logo} alt="logo" className="mr-2 h-6 w-6" width={24} height={24} />
             {/* <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 24 24"
