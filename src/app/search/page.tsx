@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator"
 
 import { AlbumArtwork } from "./components/album-artwork"
 import { getAll } from "@/data/img-dirs"
+import Link from "next/link"
 
 interface Album {
   name: string
@@ -23,9 +24,7 @@ export default function SearchPage() {
 
   useEffect(() => {
     getAll().then(data => {
-      if (data.length > 0) {
-        setDirsExist(true);
-      }
+      setDirsExist(data.length != 0);
     })
   }, [])
 
@@ -110,6 +109,18 @@ export default function SearchPage() {
                       </div>
                     ) : (
                       <div className="space-y-1">
+
+                        <div className="py-8 text-center text-muted-foreground">
+
+                          <Button
+                            className="h-9 px-4"
+                          >
+
+                            <Link href="/imgdir">
+                              You need to set Image Directory first
+                            </Link>
+                          </Button>
+                        </div>
                       </div>
                     )
                     }

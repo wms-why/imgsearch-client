@@ -1,4 +1,5 @@
-import { LazyStore, load } from '@tauri-apps/plugin-store';
+import { LazyStore } from '@tauri-apps/plugin-store';
+import { getAllImageInfo, indexImage } from './image';
 
 export interface ImgDir {
     name: string
@@ -6,6 +7,10 @@ export interface ImgDir {
     enableRename: boolean
 }
 
+export interface ImgDirProcessParams {
+    total: number
+    current: number
+}
 
 const ImgDirStore = new LazyStore('ImgDirStore.json');
 
@@ -13,7 +18,7 @@ export async function getAll(): Promise<ImgDir[]> {
     return ImgDirStore.values();
 }
 
-export async function addImgDir(imgDir: ImgDir) {
+export async function addImgDir(imgDir: ImgDir, process?: (p: ImgDirProcessParams) => Promise<void>) {
     // 判断imgdirs里面的元素，是否是imgdir的父目录
 
     const ImgDirs = await getAll();
@@ -24,6 +29,22 @@ export async function addImgDir(imgDir: ImgDir) {
     });
 
     await ImgDirStore.set(imgDir.path, imgDir);
+
+    getAllImageInfo(imgDir.path).then(async (images) => {
+
+        const params = {
+            total: images.length,
+            current: 0
+        } satisfies ImgDirProcessParams;
+
+        for (const image of images) {
+            await indexImage(image, imgDir.enableRename);
+
+            params.current++;
+            await process?.(params);
+
+        }
+    });
 }
 
 export async function removeImgDir(imgDirPath: string) {

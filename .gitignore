@@ -1,3 +1,5 @@
 node_modules
 dist
 .next
+target
+src-tauri/gen/schemas/*

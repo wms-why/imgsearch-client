@@ -7,6 +7,7 @@ import { Menu } from "@/components/menu"
 import { StyleSwitcher } from "@/components/style-switcher"
 import { TailwindIndicator } from "@/components/tailwind-indicator"
 import { ThemeProvider } from "@/components/theme-provider"
+import { Toaster } from "@/components/ui/toaster"
 interface ExamplesLayoutProps {
   children: React.ReactNode
 }
@@ -31,6 +32,7 @@ export default async function MyApp({ children }: ExamplesLayoutProps) {
             </div>
           </div>
           <TailwindIndicator />
+          <Toaster />
         </ThemeProvider>
         <StyleSwitcher />
       </body>

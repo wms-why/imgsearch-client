@@ -1,8 +1,8 @@
 [package]
 name = "imgsearch-client"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+description = ""
+authors = ["ymk"]
 license = "MIT"
 repository = ""
 edition = "2021"
@@ -20,7 +20,7 @@ tauri-plugin-store = "2.2.1"
 tauri-plugin-os = "2.2.2"
 tauri-plugin-shell = "2.2.2"
 tauri-plugin-dialog = "2.2.2"
-# tauri-plugin-fs = { version = "2.3.0", features = ["watch"] }
+tauri-plugin-fs = { version = "2.3.0", features = ["watch"] }
 # tauri-plugin-http = { version = "2", features = ["json"] }
 uuid = { version = "1.17.0", features = ["v4"] }
 thiserror = "2.0.12"
