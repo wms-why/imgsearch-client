@@ -7,10 +7,12 @@
     ],
     "permissions": [
         "os:default",
+        "os:allow-os-type",
         "shell:allow-open",
         "dialog:default",
         "store:default",
         "core:window:default",
-        "core:window:allow-start-dragging"
+        "core:window:allow-start-dragging",
+        "core:window:allow-close"
     ]
 }

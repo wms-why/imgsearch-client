@@ -1,11 +1,12 @@
 'use client'
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 
 import { AlbumArtwork } from "./components/album-artwork"
+import { getAll } from "@/data/img-dirs"
 
 interface Album {
   name: string
@@ -13,10 +14,20 @@ interface Album {
   cover: string
 }
 
-export default function MusicPage() {
+export default function SearchPage() {
   const [keywords, setKeywords] = useState('')
   const [isSearching, setIsSearching] = useState(false)
   const [searchResults, setSearchResults] = useState<Album[]>([])
+
+  const [dirsExist, setDirsExist] = useState<boolean>(false);
+
+  useEffect(() => {
+    getAll().then(data => {
+      if (data.length > 0) {
+        setDirsExist(true);
+      }
+    })
+  }, [])
 
   const handleSearch = () => {
     if (keywords.trim() === '') {
@@ -76,7 +87,7 @@ export default function MusicPage() {
                     </div>
 
                     <Separator />
-                    {isSearching ? (
+                    {dirsExist ? isSearching ? (
                       <div className="py-8 text-center text-muted-foreground">
                         Searching...
                       </div>
@@ -97,9 +108,12 @@ export default function MusicPage() {
                           />
                         ))}
                       </div>
-                    )}
+                    ) : (
+                      <div className="space-y-1">
+                      </div>
+                    )
+                    }
                   </div>
-
                 </div>
               </div>
             </div>
