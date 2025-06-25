@@ -30,7 +30,8 @@
           "**"
         ]
       }
-    }
+    },
+    "withGlobalTauri": true
   },
   "bundle": {
     "active": true,
@@ -42,20 +43,5 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
-  },
-  "plugins": {
-    "fs": {
-      "scope": {
-        "allow": [
-          "**"
-        ],
-        "deny": []
-      }
-    },
-    "os": {
-      "permissions": [
-        "all"
-      ]
-    }
   }
 }

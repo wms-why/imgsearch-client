@@ -25,7 +25,7 @@ pub fn search_images(query: String, state: State<AppState>) -> Vec<ImageInfo> {
 }
 
 #[tauri::command]
-pub async fn upload_image(
+pub async fn index_image(
     file_path: String,
     state: State<'_, AppState>,
 ) -> Result<ImageInfo, String> {

@@ -2,7 +2,6 @@ import "@/styles/globals.css"
 
 import { fontMono, fontSans } from "@/lib/fonts"
 import { cn } from "@/lib/utils"
-import { Initing } from "@/components/Initing"
 import { Menu } from "@/components/menu"
 import { StyleSwitcher } from "@/components/style-switcher"
 import { TailwindIndicator } from "@/components/tailwind-indicator"
@@ -17,7 +16,6 @@ export default async function MyApp({ children }: ExamplesLayoutProps) {
     <html lang="en" suppressHydrationWarning className="overflow-clip bg-black">
       <head />
       <body className="overflow-clip bg-transparent font-sans antialiased scrollbar-none">
-        <Initing />
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <div className="h-screen overflow-clip">
             <Menu />

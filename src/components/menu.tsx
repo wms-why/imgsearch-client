@@ -54,15 +54,28 @@ export function Menu() {
           <MenubarTrigger className="font-bold">App</MenubarTrigger>
           <Dialog modal={false}>
             <MenubarContent>
-              <DialogTrigger asChild>
-                <MenubarItem>About App</MenubarItem>
-              </DialogTrigger>
+
               <MenubarItem>
                 <Link href="/imgdir">Image Directory</Link>
               </MenubarItem>
+              <MenubarItem>
+                <Link href="/guide">Guide</Link>
+              </MenubarItem>
+
+              <MenubarItem>
+                <Link href="/terms">Terms of Service</Link>
+              </MenubarItem>
+
+              <MenubarItem>
+                <Link href="/privacy">Privacy</Link>
+              </MenubarItem>
+
               <MenubarItem onClick={closeWindow}>
                 Close
               </MenubarItem>
+              <DialogTrigger asChild>
+                <MenubarItem>About App</MenubarItem>
+              </DialogTrigger>
             </MenubarContent>
 
             <AboutDialog />
