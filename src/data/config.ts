@@ -1,0 +1,1 @@
+export const IMGSEARCH_HOST = "https://imgsearch.dev";

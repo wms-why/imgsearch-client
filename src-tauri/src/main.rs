@@ -4,6 +4,21 @@
     windows_subsystem = "windows"
 )]
 
+use tauri::Manager;
+
+use crate::server::init_server;
+
+mod error;
+mod image;
+mod image_idx;
+mod image_utils;
+mod path_utils;
+mod server;
+mod uuid_utils;
+
+pub struct AppState {
+    pub server: server::imgsearch_server::ImgseachServer,
+}
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
@@ -16,7 +31,12 @@ fn main() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::new().build())
-        .plugin(tauri_plugin_http::init())
+        .setup(|app| {
+            app.manage(AppState {
+                server: init_server(app)?,
+            });
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

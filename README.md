@@ -8,6 +8,8 @@ Tauri UI Template is a starting point for building modern desktop applications w
 
 ## Getting Started
 
+[Install protobuf](https://protobuf.dev/installation/)
+
 Use [create-tauri-ui](https://github.com/agmmnn/create-tauri-ui) to quickly scaffold a Tauri UI project.
 
 ```bash

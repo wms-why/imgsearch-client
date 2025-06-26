@@ -18,38 +18,47 @@ pub enum AppError {
     RightsLimitError(String),
 }
 
+impl From<tauri_plugin_store::Error> for AppError {
+    fn from(e: tauri_plugin_store::Error) -> Self {
+        AppError::InternalError(format!("tauri_plugin_store::Error: {:?}", e))
+    }
+}
 impl Into<InvokeError> for AppError {
     fn into(self) -> InvokeError {
         InvokeError::from_error(Box::new(self))
     }
 }
 
-
-impl From<reqwest::Error> for AppError { 
+impl From<reqwest::Error> for AppError {
     fn from(err: reqwest::Error) -> Self {
-
-        if let Some(url) = err.url() { 
+        if let Some(url) = err.url() {
             AppError::NetworkError(url.to_string())
-        }else  {
+        } else {
             AppError::InternalError(format!("{:?}", err))
         }
     }
 }
 
-impl <T> From<PoisonError<T>> for AppError { 
+impl<T> From<PoisonError<T>> for AppError {
     fn from(err: PoisonError<T>) -> Self {
         AppError::InternalError(format!("{:?}", err))
     }
 }
 
-impl From<std::io::Error> for AppError { 
-    fn from(err: std::io::Error) -> Self { 
+impl From<std::io::Error> for AppError {
+    fn from(err: std::io::Error) -> Self {
         AppError::InternalError(format!("{:?}", err))
     }
 }
 
-impl From<serde_json::Error> for AppError { 
-    fn from(err: serde_json::Error) -> Self { 
+impl From<serde_json::Error> for AppError {
+    fn from(err: serde_json::Error) -> Self {
+        AppError::InternalError(format!("{:?}", err))
+    }
+}
+
+impl From<image::ImageError> for AppError {
+    fn from(err: image::ImageError) -> Self {
         AppError::InternalError(format!("{:?}", err))
     }
 }

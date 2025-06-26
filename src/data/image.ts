@@ -2,41 +2,34 @@ import { create, BaseDirectory, readDir, FileInfo } from '@tauri-apps/plugin-fs'
 import { join } from '@tauri-apps/api/path';
 import { invoke } from '@tauri-apps/api/core';
 
-export const ImageValidSubfix = [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"];
-async function processDirRecursively(parent: string, result: ImagePath[]) {
+export const ImageValidSubfix = [".jpg", ".jpeg", ".png", ".webp"];
+async function processDirRecursively(root: string, parent: string, result: ImagePath[]) {
     const entries = await readDir(parent);
     for (const entry of entries) {
         const abpath = await join(parent, entry.name);
         if (entry.isDirectory) {
-            processDirRecursively(abpath, result);
+            processDirRecursively(root, abpath, result);
         } else {
-            ImageValidSubfix.find(subfix => entry.name.endsWith(subfix)) && result.push({ path: abpath, name: entry.name });
+            ImageValidSubfix.find(subfix => entry.name.endsWith(subfix)) && result.push({ path: abpath, name: entry.name, rootDir: root });
         }
     }
 }
 
 export interface ImagePath {
+    rootDir: string;
     path: string;
     name: string;
 }
 
 export async function getAllImageInfo(directory: string) {
     const result: ImagePath[] = [];
-    processDirRecursively(directory, result);
+    processDirRecursively(directory, directory, result);
+
     return result;
 }
 
-export interface ImageIndexInfo {
-    name: string
-    path: string
-    thumbnail: string
-    size: number
-    width: number
-    height: number
-}
+export async function indexImage(imagePath: ImagePath, rename: boolean) {
 
-export async function indexImage(imagePath: ImagePath, rename: boolean): Promise<ImageIndexInfo | null> {
-
-    return new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1000));
+    await invoke("index_image", { model: { ...imagePath, rename } });
 
 }

@@ -12,6 +12,8 @@ interface ExamplesLayoutProps {
 }
 
 export default async function MyApp({ children }: ExamplesLayoutProps) {
+  console.log("MyApp started");
+
   return (
     <html lang="en" suppressHydrationWarning className="overflow-clip bg-black">
       <head />
