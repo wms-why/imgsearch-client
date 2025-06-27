@@ -12,8 +12,8 @@ pub fn thumbnail_dir() -> PathBuf {
     p
 }
 
-pub fn image_idx_file() -> PathBuf {
-    let p = data_dir().join("image_idx.db");
+pub fn lancedb_dir() -> PathBuf {
+    let p = data_dir().join("lancedb_dir");
     std::fs::create_dir(&p);
     p
 }

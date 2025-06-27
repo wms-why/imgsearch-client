@@ -1,10 +1,10 @@
 use std::sync::PoisonError;
 
-use tauri::ipc::InvokeError;
+use lancedb::arrow::arrow_schema::ArrowError;
+use tauri::{ipc::InvokeError, App};
 use tauri_plugin_http::reqwest;
-use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum AppError {
     #[error("Invalid parameters: {0}")]
     InvalidParams(String),
@@ -16,6 +16,8 @@ pub enum AppError {
     AuthError(String),
     #[error("rights limit error: {0}")]
     RightsLimitError(String),
+    #[error("image format error: {0}")]
+    ImgFormatError(String),
 }
 
 impl From<tauri_plugin_store::Error> for AppError {
@@ -59,6 +61,24 @@ impl From<serde_json::Error> for AppError {
 
 impl From<image::ImageError> for AppError {
     fn from(err: image::ImageError) -> Self {
+        AppError::InternalError(format!("{:?}", err))
+    }
+}
+
+impl From<fast_image_resize::ResizeError> for AppError {
+    fn from(err: fast_image_resize::ResizeError) -> Self {
+        AppError::InternalError(format!("{:?}", err))
+    }
+}
+
+impl From<lancedb::Error> for AppError {
+    fn from(err: lancedb::Error) -> Self {
+        AppError::InternalError(format!("{:?}", err))
+    }
+}
+
+impl From<ArrowError> for AppError {
+    fn from(err: ArrowError) -> Self {
         AppError::InternalError(format!("{:?}", err))
     }
 }

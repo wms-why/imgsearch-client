@@ -8,6 +8,7 @@ use tauri::Manager;
 
 use crate::server::init_server;
 
+mod db;
 mod error;
 mod image;
 mod image_idx;
@@ -15,9 +16,9 @@ mod image_utils;
 mod path_utils;
 mod server;
 mod uuid_utils;
-
 pub struct AppState {
     pub server: server::imgsearch_server::ImgseachServer,
+    pub img_idx_tbl: lancedb::Table,
 }
 fn main() {
     tauri::Builder::default()
@@ -32,8 +33,13 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .setup(|app| {
+            let img_idx_tbl = tauri::async_runtime::block_on(async {
+                return db::init_db().await.unwrap();
+            });
+
             app.manage(AppState {
                 server: init_server(app)?,
+                img_idx_tbl,
             });
             Ok(())
         })

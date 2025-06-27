@@ -51,12 +51,11 @@ pub fn downscale(buf: &[u8], format: ImageFormat) -> Result<Option<Bytes>, AppEr
 
     let target_width = IMAGE_WIDTH;
     let target_height: u32 = IMAGE_WIDTH * src_image.height() / src_image.width();
-
-    let mut dst_image = Image::new(
-        target_width,
-        target_height,
-        src_image.pixel_type().map_or_else(default, f),
-    );
+    let pixel_type = src_image.pixel_type();
+    if pixel_type.is_none() {
+        return Err(AppError::ImgFormatError("pixel_type is none".to_string()));
+    }
+    let mut dst_image = Image::new(target_width, target_height, pixel_type.unwrap());
 
     // Create Resizer instance and resize source image
     // into buffer of destination image
