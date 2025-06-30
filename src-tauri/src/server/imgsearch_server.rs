@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf};
 
 use tauri::http::StatusCode;
 use tauri_plugin_http::reqwest;
@@ -34,6 +34,31 @@ impl ImageIndexer for ImgseachServer {
 
         let r = reqwest::Client::new()
             .post(format!("{}/api/image_index/v1", &self.host))
+            .multipart(form)
+            .send()
+            .await?;
+
+        if r.status().is_success() {
+            Ok(r.json::<ImageIndexResp>().await?)
+        } else {
+            Err(judge_imgsearch_error(r.status()))
+        }
+    }
+    
+    async fn indexes(&self, params: &[PathBuf], rename: bool) -> Result<ImageIndexResp, AppError> {
+        let mut form = reqwest::multipart::Form::new();
+
+        let mut i = 0;
+        for p in params.iter() {
+            form = form.file(format!("thumbnail_{}", i), p.as_path().to_str().unwrap())
+            .await?;
+            i += 1;
+        }
+
+        form = form.text("rename", rename.to_string());
+
+        let r = reqwest::Client::new()
+            .post(format!("{}/api/image_indexes/v1", &self.host))
             .multipart(form)
             .send()
             .await?;

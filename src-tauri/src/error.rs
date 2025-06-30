@@ -1,7 +1,7 @@
 use std::sync::PoisonError;
 
 use lancedb::arrow::arrow_schema::ArrowError;
-use tauri::{ipc::InvokeError, App};
+use tauri::ipc::InvokeError;
 use tauri_plugin_http::reqwest;
 
 #[derive(thiserror::Error, Debug)]

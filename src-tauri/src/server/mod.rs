@@ -21,6 +21,7 @@ pub struct ImageIndexResp {
 
 pub trait ImageIndexer {
     async fn index(&self, path: PathBuf, rename: bool) -> Result<ImageIndexResp, AppError>;
+    async fn indexes(&self, params: &[PathBuf], rename: bool) -> Result<ImageIndexResp, AppError>;
 }
 
 pub fn init_server(app: &App) -> Result<ImgseachServer, AppError> {

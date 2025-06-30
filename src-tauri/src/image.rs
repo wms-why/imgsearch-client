@@ -2,7 +2,7 @@ use std::path::Path;
 
 use image::ImageFormat;
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{async_runtime::JoinHandle, State};
 
 use crate::{error::AppError, image_utils, server::ImageIndexer, AppState};
 
@@ -26,7 +26,7 @@ pub fn search_images(query: String) -> Vec<ImageInfo> {
     Vec::new()
 }
 
-#[derive(Serialize, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct ImageIdxModel {
     #[serde(rename = "rootDir")]
     pub root_dir: String,
@@ -41,19 +41,56 @@ impl ImageIdxModel {
     }
 }
 
+// #[tauri::command(rename_all = "snake_case")]
+// pub async fn index_image(model: ImageIdxModel, state: State<'_, AppState>) -> Result<(), AppError> {
+//     let source_bs = std::fs::read(Path::new(&model.path))?;
+
+//     let format = image_utils::guess_format(source_bs.as_slice())?;
+//     let bs = image_utils::downscale(&source_bs, format)?;
+
+//     let thumbnail_path = match bs {
+//         Some(bs) => image_utils::save_local(bs.as_ref(), format)?,
+//         None => image_utils::save_local(&source_bs, format)?,
+//     };
+
+//     let index_info = state.server.index(thumbnail_path, model.rename).await?;
+
+//     Ok(())
+// }
+
+#[derive(Deserialize, Clone, Debug)]
+pub struct ImageIdxModels {
+    #[serde(rename = "rootDir")]
+    pub root_dir: String,
+    pub path: Vec<String>,
+    pub rename: bool,
+}
+
 #[tauri::command(rename_all = "snake_case")]
-pub async fn index_image(model: ImageIdxModel, state: State<'_, AppState>) -> Result<(), AppError> {
-    let source_bs = std::fs::read(Path::new(&model.path))?;
+pub async fn index_images(model: ImageIdxModels, state: State<'_, AppState>) -> Result<(), AppError> {
+    
+    let mut t = Vec::with_capacity(model.path.len());
+    for m in model.path.iter() {
+        let source_bs = std::fs::read(Path::new(m))?;
 
-    let format = image_utils::guess_format(source_bs.as_slice())?;
-    let bs = image_utils::downscale(&source_bs, format)?;
+        let format = image_utils::guess_format(source_bs.as_slice())?;
+        let bs = image_utils::downscale(&source_bs, format)?;
 
-    let thumbnail_path = match bs {
-        Some(bs) => image_utils::save_local(bs.as_ref(), format)?,
-        None => image_utils::save_local(&source_bs, format)?,
-    };
+        let thumbnail_path = match bs {
+            Some(bs) => image_utils::save_local(bs.as_ref(), format)?,
+            None => image_utils::save_local(&source_bs, format)?,
+        };
 
-    let index_info = state.server.index(thumbnail_path, model.rename).await?;
+        t.push((m, thumbnail_path));
+
+    }
+
+    let js = t.iter().map( | (m, thumbnail_path)| {
+        return tauri::async_runtime::block_on(async move ||  {
+            return state.server.index(thumbnail_path, m.rename).await;
+        })
+    } ).collect::<JoinHandle<Result<ImageIndexResp, AppError>>>();
+
 
     Ok(())
 }

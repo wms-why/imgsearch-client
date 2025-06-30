@@ -60,16 +60,14 @@ pub async fn create_empty_table(db: &Connection) -> Result<Table, AppError> {
         }
         Err(e) => match e {
             Error::TableAlreadyExists { .. } => {
-                return Ok(db.open_table("img_idx").execute().await?);
+                Ok(db.open_table("img_idx").execute().await?)
             }
-            _ => return Err(e.into()),
+            _ => Err(e.into()),
         },
     }
 }
 
 pub async fn save_batch(table: &Table, records: Vec<ImgIdx>) -> Result<(), AppError> {
-    let schema = get_schema().clone();
-
     let name = StringArray::from_iter_values(
         records
             .iter()
@@ -101,20 +99,27 @@ pub async fn save_batch(table: &Table, records: Vec<ImgIdx>) -> Result<(), AppEr
     let embedding = FixedSizeListArray::from_iter_primitive::<Float64Type, _, _>(
         records
             .into_iter()
-            .map(|ImgIdx { vec, .. }| Some(vec))
+            .map(|ImgIdx { vec, .. }| {
+                Some(vec.into_iter().map(Some).collect::<Vec<_>>())
+                // Some(vec)
+            })
             .collect::<Vec<_>>(),
         DIM,
     );
 
-    let batch = RecordBatch::try_new(schema, vec![
-        Arc::new(name),
-        Arc::new(path),
-        Arc::new(root) ,
-        Arc::new(desc) ,
-        Arc::new(embedding),
+    let schema = get_schema();
+
+    let batch = RecordBatch::try_new(schema.clone(), vec![
+         Arc::new(name) as ArrayRef,
+         Arc::new(path) as ArrayRef,
+         Arc::new(root) as ArrayRef,
+         Arc::new(desc) as ArrayRef,
+         Arc::new(embedding) as ArrayRef,
     ])?;
 
-    let batch = RecordBatchIterator::new(batch, schema);
+    let reader = RecordBatchIterator::new(vec![batch].into_iter().map(Ok), schema.clone());
 
-    return table.add(batch).await;
+    table.add(reader).execute().await?;
+
+    Ok(())
 }

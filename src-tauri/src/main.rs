@@ -26,6 +26,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             // guide::save_guide,
             // image::search_images
+            image::index_images
         ])
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
