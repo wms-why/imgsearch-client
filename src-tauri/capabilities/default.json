@@ -29,6 +29,7 @@
           "url": "https://imgsearch.dev"
         }
       ]
-    }
+    },
+    "log:default"
   ]
 }

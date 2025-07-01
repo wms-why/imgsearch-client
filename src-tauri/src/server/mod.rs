@@ -14,14 +14,14 @@ use imgsearch_server::ImgseachServer;
 
 #[derive(Deserialize)]
 pub struct ImageIndexResp {
-    vec: Vec<f32>,
-    desc: String,
-    name: Option<String>,
+    pub vec: Vec<f64>,
+    pub desc: String,
+    pub name: Option<String>,
 }
 
 pub trait ImageIndexer {
     async fn index(&self, path: PathBuf, rename: bool) -> Result<ImageIndexResp, AppError>;
-    async fn indexes(&self, params: &[PathBuf], rename: bool) -> Result<ImageIndexResp, AppError>;
+    async fn indexes(&self, params: &[PathBuf], rename: bool) -> Result<Vec<ImageIndexResp>, AppError>;
 }
 
 pub fn init_server(app: &App) -> Result<ImgseachServer, AppError> {

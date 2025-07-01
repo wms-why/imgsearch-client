@@ -1,17 +1,16 @@
 import { LazyStore } from '@tauri-apps/plugin-store';
-import { getAllImageInfo, indexImage } from './image';
+import { getAllImageInfo, indexImage, indexImages } from './image';
+import { warn, debug, trace, info, error } from '@tauri-apps/plugin-log';
 
-const indexImageSize = 5;
 export interface ImgDir {
     name: string
-    path: string
+    root: string
     enableRename: boolean
 }
 
 export interface ImgDirProcessParams {
     total: number
     current: number
-    currentName: string
 }
 
 const ImgDirStore = new LazyStore('ImgDirStore.json');
@@ -25,42 +24,34 @@ export async function addImgDir(imgDir: ImgDir, process?: (p: ImgDirProcessParam
 
     const ImgDirs = await getAll();
     ImgDirs.forEach(e => {
-        if (imgDir.path.startsWith(e.path) || e.path.startsWith(imgDir.path)) {
+        if (imgDir.root.startsWith(e.root) || e.root.startsWith(imgDir.root)) {
             throw new Error("Imgdirs already contains a directory that is a parent or child of the specified directory");
         }
     });
 
-    await ImgDirStore.set(imgDir.path, imgDir);
+    await ImgDirStore.set(imgDir.root, imgDir);
+    const images = await getAllImageInfo(imgDir.root);
 
-    getAllImageInfo(imgDir.path).then(async (images) => {
+    const total = images.length;
+    const imgProcessSize = 5;
 
-        const total = images.length;
-        let i = 0;
-
-        let runCount = 0;
-
-        while (runCount < indexImageSize && i < total) {
-            processItem()
-            runCount++;
+    let i = 0;
+    while (i < total) {
+        const params = {
+            total,
+            current: i
+        } satisfies ImgDirProcessParams;
+        process?.(params);
+        const ps = images.slice(i, imgProcessSize).map(e => e.path);
+        try {
+            await indexImages(imgDir.root, ps, imgDir.enableRename);
+        } catch (e) {
+            error(`index image error: ${e}, ${ps.join('|')}`);
+            throw e;
         }
-        function processItem() {
 
-            const params = {
-                total,
-                current: i + 1,
-                currentName: images[i].name,
-            } satisfies ImgDirProcessParams;
-            process?.(params);
-
-            indexImage(images[i], imgDir.enableRename).then(() => {
-                if (i < total) {
-                    setTimeout(processItem, 100);
-                }
-            });
-
-            i++;
-        }
-    });
+        i += imgProcessSize;
+    }
 }
 
 export async function removeImgDir(imgDirPath: string) {

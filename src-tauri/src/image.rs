@@ -1,10 +1,14 @@
 use std::path::Path;
 
-use image::ImageFormat;
 use serde::{Deserialize, Serialize};
-use tauri::{async_runtime::JoinHandle, State};
+use tauri::State;
 
-use crate::{error::AppError, image_utils, server::ImageIndexer, AppState};
+use crate::{
+    error::AppError,
+    image_idx, image_utils, path_utils,
+    server::{ImageIndexResp, ImageIndexer},
+    AppState,
+};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ImageInfo {
@@ -35,12 +39,6 @@ pub struct ImageIdxModel {
     pub rename: bool,
 }
 
-impl ImageIdxModel {
-    fn get_subfix(&self) -> &str {
-        &self.name[self.name.rfind(".").unwrap() + 1..]
-    }
-}
-
 // #[tauri::command(rename_all = "snake_case")]
 // pub async fn index_image(model: ImageIdxModel, state: State<'_, AppState>) -> Result<(), AppError> {
 //     let source_bs = std::fs::read(Path::new(&model.path))?;
@@ -62,16 +60,18 @@ impl ImageIdxModel {
 pub struct ImageIdxModels {
     #[serde(rename = "rootDir")]
     pub root_dir: String,
-    pub path: Vec<String>,
+    pub paths: Vec<String>,
     pub rename: bool,
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub async fn index_images(model: ImageIdxModels, state: State<'_, AppState>) -> Result<(), AppError> {
-    
-    let mut t = Vec::with_capacity(model.path.len());
-    for m in model.path.iter() {
-        let source_bs = std::fs::read(Path::new(m))?;
+pub async fn index_images(
+    mut model: ImageIdxModels,
+    state: State<'_, AppState>,
+) -> Result<(), AppError> {
+    let mut t = Vec::with_capacity(model.paths.len());
+    for path in model.paths.iter() {
+        let source_bs = std::fs::read(Path::new(path))?;
 
         let format = image_utils::guess_format(source_bs.as_slice())?;
         let bs = image_utils::downscale(&source_bs, format)?;
@@ -81,16 +81,53 @@ pub async fn index_images(model: ImageIdxModels, state: State<'_, AppState>) -> 
             None => image_utils::save_local(&source_bs, format)?,
         };
 
-        t.push((m, thumbnail_path));
-
+        t.push(thumbnail_path);
     }
 
-    let js = t.iter().map( | (m, thumbnail_path)| {
-        return tauri::async_runtime::block_on(async move ||  {
-            return state.server.index(thumbnail_path, m.rename).await;
-        })
-    } ).collect::<JoinHandle<Result<ImageIndexResp, AppError>>>();
+    let r = state.server.indexes(&t, model.rename).await?;
 
+    if model.rename {
+        let new_paths = model
+            .paths
+            .iter()
+            .zip(r.iter())
+            .map(|(p, r)| {
+                if let Some(newname) = &r.name {
+                    if let Ok(new_path) = path_utils::rename(p, newname) {
+                        new_path.to_str().unwrap().to_string()
+                    } else {
+                        p.clone()
+                    }
+                } else {
+                    p.clone()
+                }
+            })
+            .collect::<Vec<_>>();
+
+        model.paths = new_paths;
+    }
+
+    let idxes = model
+        .paths
+        .iter()
+        .zip(r.into_iter())
+        .map(|(p, ImageIndexResp { vec, desc, .. })| {
+            let current_path = std::path::Path::new(p);
+            image_idx::ImgIdx {
+                name: current_path
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .to_string(),
+                path: p.to_string(),
+                root: model.root_dir.clone(),
+                desc,
+                vec,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    image_idx::save_batch(&state.img_idx_tbl, idxes).await?;
 
     Ok(())
 }

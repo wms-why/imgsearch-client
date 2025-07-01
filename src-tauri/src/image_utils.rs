@@ -16,14 +16,14 @@ use super::error::AppError;
 const IMAGE_WIDTH: u32 = 512;
 
 pub fn save_local(bs: &[u8], format: ImageFormat) -> Result<PathBuf, AppError> {
-    let mut p = path_utils::thumbnail_dir().join(format!(
+    let mut p = path_utils::thumbnail_dir()?.join(format!(
         "{}.{}",
         uuid_utils::get(),
         format.extensions_str()[0]
     ));
 
     while p.exists() {
-        p = path_utils::thumbnail_dir().join(format!(
+        p = path_utils::thumbnail_dir()?.join(format!(
             "{}.{}",
             uuid_utils::get(),
             format.extensions_str()[0]
@@ -53,7 +53,7 @@ pub fn downscale(buf: &[u8], format: ImageFormat) -> Result<Option<Bytes>, AppEr
     let target_height: u32 = IMAGE_WIDTH * src_image.height() / src_image.width();
     let pixel_type = src_image.pixel_type();
     if pixel_type.is_none() {
-        return Err(AppError::ImgFormatError("pixel_type is none".to_string()));
+        return Err(AppError::ImgFormat("pixel_type is none".to_string()));
     }
     let mut dst_image = Image::new(target_width, target_height, pixel_type.unwrap());
 
@@ -107,6 +107,6 @@ pub fn downscale(buf: &[u8], format: ImageFormat) -> Result<Option<Bytes>, AppEr
 
 impl<T> From<IntoInnerError<T>> for AppError {
     fn from(e: IntoInnerError<T>) -> Self {
-        AppError::InternalError(format!("IntoInnerError: {:?}", e.error()))
+        AppError::Internal(format!("IntoInnerError: {:?}", e.error()))
     }
 }

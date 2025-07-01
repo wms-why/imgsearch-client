@@ -22,6 +22,18 @@ pub struct AppState {
 }
 fn main() {
     tauri::Builder::default()
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .target(tauri_plugin_log::Target::new(
+                    tauri_plugin_log::TargetKind::Folder {
+                        path: path_utils::logs_dir().expect("Failed to get logs dir"),
+                        file_name: None,
+                    },
+                ))
+                .max_file_size(50_000 /* bytes */)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
+                .build(),
+        )
         .plugin(tauri_plugin_http::init())
         .invoke_handler(tauri::generate_handler![
             // guide::save_guide,

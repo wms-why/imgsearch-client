@@ -13,7 +13,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 
 export default function ImgdirPage() {
   const [imgDirs, setImgDirs] = useState<ImgDir[]>([]);
-  const [newDir, setNewDir] = useState<ImgDir>({ name: "", path: "", enableRename: false });
+  const [newDir, setNewDir] = useState<ImgDir>({ name: "", root: "", enableRename: false });
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -41,7 +41,7 @@ export default function ImgdirPage() {
   const handDialogChange = (open: boolean) => {
     setDialogOpen(open);
     if (open) {
-      setNewDir({ name: "", path: "", enableRename: false });
+      setNewDir({ name: "", root: "", enableRename: false });
     }
   }
 
@@ -55,7 +55,7 @@ export default function ImgdirPage() {
 
       if (selected) {
         const dirName = selected.split(/[\\/]/).pop() || '';
-        setNewDir({ ...newDir, name: dirName, path: selected });
+        setNewDir({ ...newDir, name: dirName, root: selected });
       }
     } catch (error) {
       toast({
@@ -67,7 +67,7 @@ export default function ImgdirPage() {
   };
 
   const handleAddDir = async () => {
-    if (!newDir.name || !newDir.path) {
+    if (!newDir.name || !newDir.root) {
       toast({
         title: "Incomplete input",
         description: "Please fill in directory name and path",
@@ -77,7 +77,18 @@ export default function ImgdirPage() {
     }
 
     try {
-      await addImgDir(newDir);
+      addImgDir(newDir, params => {
+        toast({
+          title: "Processing New Image Directory",
+          description: `proccessing ${params.current}/${params.total}`,
+        });
+      }).catch(e => {
+        toast({
+          title: "Failed",
+          description: e.message,
+          variant: "destructive",
+        });
+      });
       handDialogChange(false);
       await loadImgDirs();
       toast({
@@ -132,7 +143,7 @@ export default function ImgdirPage() {
             <div className="flex gap-2">
               <Input
                 placeholder="Directory path"
-                value={newDir.path}
+                value={newDir.root}
                 readOnly
               />
 
@@ -180,9 +191,9 @@ export default function ImgdirPage() {
         </TableHeader>
         <TableBody>
           {imgDirs.map((dir) => (
-            <TableRow key={dir.path}>
+            <TableRow key={dir.root}>
               <TableCell>{dir.name}</TableCell>
-              <TableCell className="font-mono text-sm">{dir.path}</TableCell>
+              <TableCell className="font-mono text-sm">{dir.root}</TableCell>
               <TableCell>
                 <Checkbox
                   checked={dir.enableRename}
@@ -194,7 +205,7 @@ export default function ImgdirPage() {
                 <Button
                   variant="destructive"
                   size="sm"
-                  onClick={() => handleRemoveDir(dir.path)}
+                  onClick={() => handleRemoveDir(dir.root)}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>

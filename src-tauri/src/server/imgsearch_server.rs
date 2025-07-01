@@ -1,4 +1,4 @@
-use std::{path::PathBuf};
+use std::path::PathBuf;
 
 use tauri::http::StatusCode;
 use tauri_plugin_http::reqwest;
@@ -44,15 +44,18 @@ impl ImageIndexer for ImgseachServer {
             Err(judge_imgsearch_error(r.status()))
         }
     }
-    
-    async fn indexes(&self, params: &[PathBuf], rename: bool) -> Result<ImageIndexResp, AppError> {
+
+    async fn indexes(
+        &self,
+        params: &[PathBuf],
+        rename: bool,
+    ) -> Result<Vec<ImageIndexResp>, AppError> {
         let mut form = reqwest::multipart::Form::new();
 
-        let mut i = 0;
-        for p in params.iter() {
-            form = form.file(format!("thumbnail_{}", i), p.as_path().to_str().unwrap())
-            .await?;
-            i += 1;
+        for (i, p) in params.iter().enumerate() {
+            form = form
+                .file(format!("thumbnail_{}", i), p.as_path().to_str().unwrap())
+                .await?;
         }
 
         form = form.text("rename", rename.to_string());
@@ -64,7 +67,7 @@ impl ImageIndexer for ImgseachServer {
             .await?;
 
         if r.status().is_success() {
-            Ok(r.json::<ImageIndexResp>().await?)
+            Ok(r.json::<Vec<ImageIndexResp>>().await?)
         } else {
             Err(judge_imgsearch_error(r.status()))
         }
@@ -74,9 +77,9 @@ impl ImageIndexer for ImgseachServer {
 fn judge_imgsearch_error(status: StatusCode) -> AppError {
     match status {
         StatusCode::PRECONDITION_FAILED => {
-            AppError::RightsLimitError("image_index count not enough".to_string())
+            AppError::RightsLimit("image_index count not enough".to_string())
         }
-        StatusCode::UNAUTHORIZED => AppError::AuthError("apikey has been invalid".to_string()),
-        _ => AppError::InternalError("unknown error".to_string()),
+        StatusCode::UNAUTHORIZED => AppError::Auth("apikey has been invalid".to_string()),
+        _ => AppError::Internal("unknown error".to_string()),
     }
 }
