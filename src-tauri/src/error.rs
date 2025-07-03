@@ -1,6 +1,5 @@
 use std::sync::PoisonError;
 
-use lancedb::arrow::arrow_schema::ArrowError;
 use tauri::ipc::InvokeError;
 use tauri_plugin_http::reqwest;
 
@@ -10,10 +9,6 @@ pub enum AppError {
     Network(String),
     #[error("Internal error: {0}")]
     Internal(String),
-    #[error("Authentication error: {0}")]
-    Auth(String),
-    #[error("rights limit error: {0}")]
-    RightsLimit(String),
     #[error("image format error: {0}")]
     ImgFormat(String),
 }
@@ -26,16 +21,6 @@ impl From<tauri_plugin_store::Error> for AppError {
 impl Into<InvokeError> for AppError {
     fn into(self) -> InvokeError {
         InvokeError::from_error(Box::new(self))
-    }
-}
-
-impl From<reqwest::Error> for AppError {
-    fn from(err: reqwest::Error) -> Self {
-        if let Some(url) = err.url() {
-            AppError::Network(url.to_string())
-        } else {
-            AppError::Internal(format!("{:?}", err))
-        }
     }
 }
 
@@ -65,18 +50,6 @@ impl From<image::ImageError> for AppError {
 
 impl From<fast_image_resize::ResizeError> for AppError {
     fn from(err: fast_image_resize::ResizeError) -> Self {
-        AppError::Internal(format!("{:?}", err))
-    }
-}
-
-impl From<lancedb::Error> for AppError {
-    fn from(err: lancedb::Error) -> Self {
-        AppError::Internal(format!("{:?}", err))
-    }
-}
-
-impl From<ArrowError> for AppError {
-    fn from(err: ArrowError) -> Self {
         AppError::Internal(format!("{:?}", err))
     }
 }

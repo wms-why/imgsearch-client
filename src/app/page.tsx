@@ -2,14 +2,18 @@
 import { useEffect, useState } from "react";
 import GuidePage from "./guide/page";
 import SearchPage from "./search/page"
-import { get, GuideType } from "@/data/guide";
+import { get as getGuide, GuideType } from "@/data/guide";
+import { init as initPath } from "@/data/file-tools";
 
 export default function App() {
 
   const [guide, setGuide] = useState<GuideType>();
 
   useEffect(() => {
-    get().then(guide => setGuide(guide));
+
+    initPath().then(() => {
+      return getGuide();
+    }).then(guide => setGuide(guide));
   })
 
   return guide === 'finished' ? <SearchPage /> : <GuidePage />;

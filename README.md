@@ -44,4 +44,4 @@ we allow personal use, and forbid commercial use.
 ## Contributing
 
 * As this project in early development, we don't accept pull requests at now. 
-* If you have any ideas, please open an issure
+* If you have any ideas, please open an issue

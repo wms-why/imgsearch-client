@@ -139,7 +139,6 @@ export default function ImgdirPage() {
 
           <div className="space-y-4">
 
-
             <div className="flex gap-2">
               <Input
                 placeholder="Directory path"
@@ -170,8 +169,6 @@ export default function ImgdirPage() {
                 Allow renaming files in this directory
               </label>
             </div>
-
-
 
             <Button onClick={handleAddDir} className="w-full">
               Add Directory
