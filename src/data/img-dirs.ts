@@ -1,6 +1,8 @@
 import { LazyStore } from '@tauri-apps/plugin-store';
 import { getAllImageInfo, indexImage, indexImages } from './img';
 import { warn, debug, trace, info, error } from '@tauri-apps/plugin-log';
+import { removeRoot } from './img-vec-idx';
+import { watch } from '@tauri-apps/plugin-fs';
 
 export interface ImgDir {
     name: string
@@ -55,4 +57,44 @@ export async function addImgDir(imgDir: ImgDir, process?: (p: ImgDirProcessParam
 
 export async function removeImgDir(imgDirPath: string) {
     await ImgDirStore.delete(imgDirPath);
+    removeRoot(imgDirPath);
 }
+
+export async function watchImgDirs() {
+    const ps = await getAll();
+
+    ps.forEach(async dir => {
+        await watch(
+            dir.root,
+            (event) => {
+
+                if (event.type.create?.file) {
+                    console.log("create file", event.paths);
+                }
+
+                if (event.type.modify?.data) {
+                    console.log("modify file", event.paths);
+                }
+
+                if (event.type.modify?.rename) {
+                    console.log("modify rename", event.paths);
+                }
+
+                if (event.type.remove?.file) {
+                    console.log("remove file", event.paths);
+
+                }
+
+                if (event.type.remove?.folder) {
+                    console.log("remove folder", event.paths);
+                }
+
+
+            },
+            {
+                recursive: true,
+                delayMs: 500,
+            }
+        );
+    })
+} 

@@ -62,3 +62,8 @@ export async function save(item: ImgIdx) {
     const tbl = await getTable();
     await tbl.add([item]);
 }
+
+export async function removeRoot(root: string) {
+    const tbl = await getTable();
+    await tbl.delete(`root = "${root}"`);
+}
