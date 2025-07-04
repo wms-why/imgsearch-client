@@ -1,9 +1,10 @@
 use std::sync::{Arc, OnceLock};
 
-use arrow_array::{types::Float64Type, ArrayRef, FixedSizeListArray, RecordBatch, RecordBatchIterator, StringArray};
+use arrow_array::{
+    types::Float64Type, ArrayRef, FixedSizeListArray, RecordBatch, RecordBatchIterator, StringArray,
+};
 use lancedb::{
     arrow::arrow_schema::{DataType, Field, Schema},
-    error::Error,
     index::vector::IvfPqIndexBuilder,
     Connection, Table,
 };
@@ -22,7 +23,8 @@ pub struct ImgIdx {
 
 static SCHEMA: OnceLock<Arc<Schema>> = OnceLock::new();
 static DIM: i32 = 768;
-
+static IMG_IDX_TABLE_NAME: &str = "img_idx";
+static IMG_IDX_BUILD_DIVIDER: usize = 256;
 fn get_schema() -> &'static Arc<Schema> {
     SCHEMA.get_or_init(|| {
         Arc::new(Schema::new(vec![
@@ -39,35 +41,36 @@ fn get_schema() -> &'static Arc<Schema> {
     })
 }
 
-pub async fn create_empty_table(db: &Connection) -> Result<Table, AppError> {
-    let r = db
-        .create_empty_table("img_idx", get_schema().clone())
-        .execute()
-        .await;
-
-    match r {
-        Ok(table) => {
-            if table.index_stats("embedding").await?.is_none() {
-                table
-                    .create_index(
-                        &["embedding"],
-                        lancedb::index::Index::IvfPq(IvfPqIndexBuilder::default()),
-                    )
-                    .execute()
-                    .await?;
-            }
-            Ok(table)
-        }
-        Err(e) => match e {
-            Error::TableAlreadyExists { .. } => {
-                Ok(db.open_table("img_idx").execute().await?)
-            }
-            _ => Err(e.into()),
-        },
+pub async fn get_table(db: &Connection) -> Result<Table, AppError> {
+    let tbls = db.table_names().execute().await?;
+    if tbls.contains(&IMG_IDX_TABLE_NAME.to_string()) {
+        return Ok(db.open_table(IMG_IDX_TABLE_NAME).execute().await?);
     }
+
+    let r = db
+        .create_empty_table(IMG_IDX_TABLE_NAME, get_schema().clone())
+        .execute()
+        .await?;
+
+    Ok(r)
 }
 
-pub async fn save_batch(table: &Table, records: Vec<ImgIdx>) -> Result<(), AppError> {
+async fn check_or_build_idx(table: Arc<Table>) -> Result<(), AppError> {
+    let count = table.count_rows(None).await?;
+
+    if count >= IMG_IDX_BUILD_DIVIDER && table.index_stats("embedding").await?.is_none() {
+        table
+            .create_index(
+                &["embedding"],
+                lancedb::index::Index::IvfPq(IvfPqIndexBuilder::default()),
+            )
+            .execute()
+            .await?;
+    }
+    Ok(())
+}
+
+pub async fn save_batch(table: Arc<Table>, records: Vec<ImgIdx>) -> Result<(), AppError> {
     let name = StringArray::from_iter_values(
         records
             .iter()
@@ -109,17 +112,27 @@ pub async fn save_batch(table: &Table, records: Vec<ImgIdx>) -> Result<(), AppEr
 
     let schema = get_schema();
 
-    let batch = RecordBatch::try_new(schema.clone(), vec![
-         Arc::new(name) as ArrayRef,
-         Arc::new(path) as ArrayRef,
-         Arc::new(root) as ArrayRef,
-         Arc::new(desc) as ArrayRef,
-         Arc::new(embedding) as ArrayRef,
-    ])?;
+    let batch = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(name) as ArrayRef,
+            Arc::new(path) as ArrayRef,
+            Arc::new(root) as ArrayRef,
+            Arc::new(desc) as ArrayRef,
+            Arc::new(embedding) as ArrayRef,
+        ],
+    )?;
 
     let reader = RecordBatchIterator::new(vec![batch].into_iter().map(Ok), schema.clone());
 
     table.add(reader).execute().await?;
+
+    let table = table.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Err(e) = check_or_build_idx(table).await {
+            log::error!("check_or_build_idx error: {}", e);
+        }
+    });
 
     Ok(())
 }

@@ -1,8 +1,7 @@
 import { LazyStore } from '@tauri-apps/plugin-store';
 import { getAllImageInfo, indexImage, indexImages } from './image';
 import { warn, debug, trace, info, error } from '@tauri-apps/plugin-log';
-import { removeRoot } from './img-vec-idx';
-import { watch } from '@tauri-apps/plugin-fs';
+import { watch, WatchEventKind, WatchEventKindCreate } from '@tauri-apps/plugin-fs';
 
 export interface ImgDir {
     name: string
@@ -58,38 +57,44 @@ export async function addImgDir(imgDir: ImgDir, process?: (p: ImgDirProcessParam
 
 export async function removeImgDir(imgDirPath: string) {
     await ImgDirStore.delete(imgDirPath);
-    removeRoot(imgDirPath);
+    // removeRoot(imgDirPath);
 }
 
-export async function watchImgDirs() {
+
+export async function onStartup() {
     const ps = await getAll();
+
+    function isKind<K extends string>(obj: any, kind: K): obj is Record<K, any> {
+        return typeof obj === 'object' && obj !== null && kind in obj;
+    }
 
     ps.forEach(async dir => {
         await watch(
             dir.root,
             (event) => {
 
-                if (event.type.create?.file) {
+                const { type } = event;
+                if (isKind(type, 'create') && isKind(type.create, "file")) {
                     console.log("create file", event.paths);
                 }
 
-                if (event.type.modify?.data) {
-                    console.log("modify file", event.paths);
+                if (isKind(type, 'modify')) {
+                    if (isKind(type.modify, "data")) {
+                        console.log("modify file", event.paths);
+                    }
+                    if (isKind(type.modify, "rename")) {
+                        console.log("modify rename", event.paths);
+                    }
                 }
 
-                if (event.type.modify?.rename) {
-                    console.log("modify rename", event.paths);
+                if (isKind(type, 'remove')) {
+                    if (isKind(type.remove, "file")) {
+                        console.log("remove file", event.paths);
+                    }
+                    if (isKind(type.remove, "folder")) {
+                        console.log("remove folder", event.paths);
+                    }
                 }
-
-                if (event.type.remove?.file) {
-                    console.log("remove file", event.paths);
-
-                }
-
-                if (event.type.remove?.folder) {
-                    console.log("remove folder", event.paths);
-                }
-
 
             },
             {

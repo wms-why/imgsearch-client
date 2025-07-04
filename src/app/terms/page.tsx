@@ -1,11 +1,14 @@
+"use client";
+
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link'
 
-export default function TermsPage({
-    searchParams,
-}: {
-    searchParams: { [key: string]: string | string[] | undefined }
-}) {
-    const fromAuth = searchParams.from === 'auth'
+export default function TermsPage() {
+
+    const searchParams = useSearchParams();
+    const from = searchParams.get('from');
+
+    const fromAuth = from === 'auth'
 
     return (
         <div className="container mx-auto my-10 px-4">

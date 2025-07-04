@@ -9,7 +9,7 @@ pub async fn init_db() -> Result<Table, AppError> {
 
     let db = lancedb::connect(db_path).execute().await?;
 
-    let table = image_idx::create_empty_table(&db).await?;
+    let table = image_idx::get_table(&db).await?;
 
     Ok(table)
 }

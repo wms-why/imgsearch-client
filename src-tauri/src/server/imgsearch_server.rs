@@ -13,11 +13,8 @@ pub struct ImgseachServer {
     host: String,
 }
 impl ImgseachServer {
-    pub fn new(apikey: String) -> Self {
-        Self {
-            apikey,
-            host: std::env::var("IMGSEARCH_HOST").unwrap(),
-        }
+    pub fn new(apikey: String, host: String) -> Self {
+        Self { apikey, host }
     }
 }
 
@@ -34,6 +31,7 @@ impl ImageIndexer for ImgseachServer {
 
         let r = reqwest::Client::new()
             .post(format!("{}/api/image_index/v1", &self.host))
+            .bearer_auth(&self.apikey)
             .multipart(form)
             .send()
             .await?;

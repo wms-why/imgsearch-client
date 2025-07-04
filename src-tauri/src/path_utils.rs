@@ -2,28 +2,37 @@ use std::path::{Path, PathBuf};
 
 use crate::error::AppError;
 
-pub fn data_dir() -> Result<PathBuf, AppError> {
+static LOG_DIR: &str = "logs";
+static THUMBNAIL_DIR: &str = "thumbnails";
+static LANCEDB_DIR: &str = "db";
+
+fn data_dir() -> Result<PathBuf, AppError> {
     let p = dirs::home_dir().unwrap().join(".imgsearch");
-    std::fs::create_dir(&p)?;
+    if !p.exists() {
+        std::fs::create_dir(&p)?;
+    }
+    Ok(p)
+}
+
+fn other_dir(name: &str) -> Result<PathBuf, AppError> {
+    let p = data_dir()?.join(name);
+    if !p.exists() {
+        println!("create dir: {}", p.display());
+        std::fs::create_dir(&p)?;
+    }
     Ok(p)
 }
 
 pub fn logs_dir() -> Result<PathBuf, AppError> {
-    let p = data_dir()?.join("logs");
-    std::fs::create_dir(&p)?;
-    Ok(p)
+    other_dir(LOG_DIR)
 }
 
 pub fn thumbnail_dir() -> Result<PathBuf, AppError> {
-    let p = data_dir()?.join("thumbnails");
-    std::fs::create_dir(&p)?;
-    Ok(p)
+    other_dir(THUMBNAIL_DIR)
 }
 
 pub fn lancedb_dir() -> Result<PathBuf, AppError> {
-    let p = data_dir()?.join("lancedb_dir");
-    std::fs::create_dir(&p)?;
-    Ok(p)
+    other_dir(LANCEDB_DIR)
 }
 
 /**

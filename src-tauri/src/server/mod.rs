@@ -21,12 +21,23 @@ pub struct ImageIndexResp {
 
 pub trait ImageIndexer {
     async fn index(&self, path: PathBuf, rename: bool) -> Result<ImageIndexResp, AppError>;
-    async fn indexes(&self, params: &[PathBuf], rename: bool) -> Result<Vec<ImageIndexResp>, AppError>;
+    async fn indexes(
+        &self,
+        params: &[PathBuf],
+        rename: bool,
+    ) -> Result<Vec<ImageIndexResp>, AppError>;
 }
 
-pub fn init_server(app: &App) -> Result<ImgseachServer, AppError> {
+pub fn init_server(app: &App) -> Result<Option<ImgseachServer>, AppError> {
     let auth = app.store("auth.json")?;
-    let binding = auth.get("apikey").unwrap();
-    let apikey = binding.as_str().unwrap();
-    Ok(ImgseachServer::new(apikey.to_string()))
+    let binding = auth.get("apikey");
+
+    if let Some(binding) = binding {
+        let apikey = binding.as_str();
+
+         let host = std::env::var("IMGSEARCH_HOST")?;
+        Ok(ImgseachServer::new(apikey.to_string()))
+    } else {
+        Ok(None)
+    }
 }

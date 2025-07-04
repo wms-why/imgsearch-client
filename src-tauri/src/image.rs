@@ -127,7 +127,7 @@ pub async fn index_images(
         })
         .collect::<Vec<_>>();
 
-    image_idx::save_batch(&state.img_idx_tbl, idxes).await?;
+    image_idx::save_batch(state.img_idx_tbl.clone(), idxes).await?;
 
     Ok(())
 }

@@ -4,6 +4,8 @@
     windows_subsystem = "windows"
 )]
 
+use std::sync::Arc;
+
 use tauri::Manager;
 
 use crate::server::init_server;
@@ -16,11 +18,13 @@ mod image_utils;
 mod path_utils;
 mod server;
 mod uuid_utils;
+
 pub struct AppState {
-    pub server: server::imgsearch_server::ImgseachServer,
-    pub img_idx_tbl: lancedb::Table,
+    pub server: Option<Arc<server::imgsearch_server::ImgseachServer>>,
+    pub img_idx_tbl: Arc<lancedb::Table>,
 }
 fn main() {
+    std::env::set_var("RUST_BACKTRACE", "1");
     tauri::Builder::default()
         .plugin(
             tauri_plugin_log::Builder::new()
@@ -46,13 +50,18 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .setup(|app| {
-            let img_idx_tbl = tauri::async_runtime::block_on(async {
-                return db::init_db().await.unwrap();
-            });
+            let img_idx_tbl = tauri::async_runtime::block_on(async { db::init_db().await })
+                .expect("Failed to init db");
+
+            let server = if let Some(server) = init_server(app)? {
+                Some(Arc::new(server))
+            } else {
+                None
+            };
 
             app.manage(AppState {
-                server: init_server(app)?,
-                img_idx_tbl,
+                server,
+                img_idx_tbl: Arc::new(img_idx_tbl),
             });
             Ok(())
         })

@@ -1,11 +1,12 @@
+"use client";
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation';
 
-export default function PrivacyPage({
-    searchParams,
-}: {
-    searchParams: { [key: string]: string | string[] | undefined }
-}) {
-    const fromAuth = searchParams.from === 'auth'
+export default function PrivacyPage() {
+    const searchParams = useSearchParams();
+    const from = searchParams.get('from');
+
+    const fromAuth = from === 'auth'
 
     return (
         <div className="container mx-auto my-10 px-4">

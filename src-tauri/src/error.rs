@@ -23,9 +23,9 @@ impl From<tauri_plugin_store::Error> for AppError {
         AppError::Internal(format!("tauri_plugin_store::Error: {:?}", e))
     }
 }
-impl Into<InvokeError> for AppError {
-    fn into(self) -> InvokeError {
-        InvokeError::from_error(Box::new(self))
+impl From<AppError> for InvokeError {
+    fn from(e: AppError) -> InvokeError {
+        InvokeError::from_error(Box::new(e))
     }
 }
 
@@ -80,3 +80,5 @@ impl From<ArrowError> for AppError {
         AppError::Internal(format!("{:?}", err))
     }
 }
+
+impl From<>
