@@ -1,5 +1,5 @@
 import { LazyStore } from '@tauri-apps/plugin-store';
-import { getAllImageInfo, indexImage, indexImages } from './img';
+import { getAllImageInfo, indexImage, indexImages } from './image';
 import { warn, debug, trace, info, error } from '@tauri-apps/plugin-log';
 import { removeRoot } from './img-vec-idx';
 import { watch } from '@tauri-apps/plugin-fs';
@@ -51,6 +51,7 @@ export async function addImgDir(imgDir: ImgDir, process?: (p: ImgDirProcessParam
             error(`index image error: ${e}, ${ps.join('|')}`);
             throw e;
         }
+
         i += imgProcessSize;
     }
 }

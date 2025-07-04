@@ -1,5 +1,9 @@
-use std::io::{BufWriter, IntoInnerError};
+use std::{
+    io::{BufWriter, IntoInnerError},
+    path::PathBuf,
+};
 
+use crate::{path_utils, uuid_utils};
 use bytes::Bytes;
 use fast_image_resize::{images::Image, IntoImageView, Resizer};
 use image::{
@@ -10,6 +14,26 @@ use image::{
 use super::error::AppError;
 
 const IMAGE_WIDTH: u32 = 512;
+
+pub fn save_local(bs: &[u8], format: ImageFormat) -> Result<PathBuf, AppError> {
+    let mut p = path_utils::thumbnail_dir()?.join(format!(
+        "{}.{}",
+        uuid_utils::get(),
+        format.extensions_str()[0]
+    ));
+
+    while p.exists() {
+        p = path_utils::thumbnail_dir()?.join(format!(
+            "{}.{}",
+            uuid_utils::get(),
+            format.extensions_str()[0]
+        ));
+    }
+
+    std::fs::write(&p, bs)?;
+
+    Ok(p)
+}
 
 pub fn guess_format(buf: &[u8]) -> Result<image::ImageFormat, AppError> {
     Ok(image::guess_format(buf)?)

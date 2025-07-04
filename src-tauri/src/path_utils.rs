@@ -14,6 +14,18 @@ pub fn logs_dir() -> Result<PathBuf, AppError> {
     Ok(p)
 }
 
+pub fn thumbnail_dir() -> Result<PathBuf, AppError> {
+    let p = data_dir()?.join("thumbnails");
+    std::fs::create_dir(&p)?;
+    Ok(p)
+}
+
+pub fn lancedb_dir() -> Result<PathBuf, AppError> {
+    let p = data_dir()?.join("lancedb_dir");
+    std::fs::create_dir(&p)?;
+    Ok(p)
+}
+
 /**
  * 重命名文件
  * target_name: 新的文件名, 不包含后缀

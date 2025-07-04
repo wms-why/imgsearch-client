@@ -9,10 +9,6 @@ const nextConfig = {
   },
   output: "export",
   distDir: "dist",
-  webpack(config) {
-    config.externals.push({ '@lancedb/lancedb': '@lancedb/lancedb' })
-    return config;
-  }
 }
 
 module.exports = nextConfig
