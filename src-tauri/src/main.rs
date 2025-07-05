@@ -10,6 +10,7 @@ use tauri::Manager;
 
 use crate::server::init_server;
 
+mod auth;
 mod db;
 mod error;
 mod image;
@@ -20,11 +21,18 @@ mod server;
 mod uuid_utils;
 
 pub struct AppState {
-    pub server: Option<Arc<server::imgsearch_server::ImgseachServer>>,
+    pub server: Option<Mutex<Arc<server::imgsearch_server::ImgseachServer>>>,
+    pub auth: Arc<Store<_>>,
     pub img_idx_tbl: Arc<lancedb::Table>,
 }
+
+impl AppState {
+    pub fn set_server(&mut self, server: server::imgsearch_server::ImgseachServer) {
+        self.server = Some(Arc::new(server));
+    }
+}
+
 fn main() {
-    std::env::set_var("RUST_BACKTRACE", "1");
     tauri::Builder::default()
         .plugin(
             tauri_plugin_log::Builder::new()
@@ -42,7 +50,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             // guide::save_guide,
             // image::search_images
-            image::index_images
+            image::index_images,
+            auth::after_apikey_set
         ])
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
@@ -53,11 +62,7 @@ fn main() {
             let img_idx_tbl = tauri::async_runtime::block_on(async { db::init_db().await })
                 .expect("Failed to init db");
 
-            let server = if let Some(server) = init_server(app)? {
-                Some(Arc::new(server))
-            } else {
-                None
-            };
+            let server = init_server(app)?.map(Arc::new);
 
             app.manage(AppState {
                 server,

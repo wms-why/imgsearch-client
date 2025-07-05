@@ -5,7 +5,7 @@ const nextConfig = {
   swcMinify: true,
   images: {
     unoptimized: true,
-    domains: ["avatars.githubusercontent.com", "images.unsplash.com"],
+    domains: [],
   },
   output: "export",
   distDir: "dist",

@@ -69,6 +69,12 @@ pub async fn index_images(
     mut model: ImageIdxModels,
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
+
+    if state.server.is_none() {
+        return Err(AppError::Auth("server not ready".to_string()));
+    }
+    // let sever = state.server.as_ref().unwrap();
+
     let mut t = Vec::with_capacity(model.paths.len());
     for path in model.paths.iter() {
         let source_bs = std::fs::read(Path::new(path))?;
@@ -84,7 +90,7 @@ pub async fn index_images(
         t.push(thumbnail_path);
     }
 
-    let r = state.server.indexes(&t, model.rename).await?;
+    let r = state.server.as_ref().unwrap().indexes(&t, model.rename).await?;
 
     if model.rename {
         let new_paths = model
@@ -96,10 +102,10 @@ pub async fn index_images(
                     if let Ok(new_path) = path_utils::rename(p, newname) {
                         new_path.to_str().unwrap().to_string()
                     } else {
-                        p.clone()
+                        p.to_string()
                     }
                 } else {
-                    p.clone()
+                    p.to_string()
                 }
             })
             .collect::<Vec<_>>();

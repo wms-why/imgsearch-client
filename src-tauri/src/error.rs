@@ -81,4 +81,4 @@ impl From<ArrowError> for AppError {
     }
 }
 
-impl From<>
+// impl From<>

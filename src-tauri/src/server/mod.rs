@@ -2,6 +2,7 @@ pub mod imgsearch_server;
 
 use std::path::PathBuf;
 
+use dotenvy::var;
 /**
  * 定义大模型服务接口，目前只支持imgsearch
  */
@@ -35,8 +36,13 @@ pub fn init_server(app: &App) -> Result<Option<ImgseachServer>, AppError> {
     if let Some(binding) = binding {
         let apikey = binding.as_str();
 
-         let host = std::env::var("IMGSEARCH_HOST")?;
-        Ok(ImgseachServer::new(apikey.to_string()))
+        if let Some(apikey) = apikey {
+
+            let host = env!("NEXT_PUBLIC_IMGSEARCH_HOST");
+            Ok(Some(ImgseachServer::new(apikey.to_string(), host.into())))
+        } else {
+            Ok(None)
+        }
     } else {
         Ok(None)
     }

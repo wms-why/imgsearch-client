@@ -1,6 +1,6 @@
+import { invoke } from '@tauri-apps/api/core';
 import { fetch } from '@tauri-apps/plugin-http';
 import { LazyStore } from '@tauri-apps/plugin-store';
-import { IMGSEARCH_HOST } from './config';
 const AuthStore = new LazyStore('Auth.json');
 
 interface LoginResp {
@@ -22,7 +22,7 @@ export async function getApikey(): Promise<string | undefined> {
 
 export async function checkApiKey(apiKey: string): Promise<string | LoginResp> {
 
-    const r = await fetch(`${IMGSEARCH_HOST}/api/check_apikey/v1`, {
+    const r = await fetch(`${process.env.NEXT_PUBLIC_IMGSEARCH_HOST}/api/check_apikey/v1`, {
         method: "GET",
         headers: {
             "Content-Type": "application/json",
@@ -42,5 +42,7 @@ export async function saveUserInfo(userInfo: LoginResp) {
 
     await AuthStore.set("apikey", userInfo.token);
     await AuthStore.set("user", userInfo);
+
+    invoke("after_apikey");
 
 }
