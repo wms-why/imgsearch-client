@@ -61,7 +61,7 @@ fn gen_new_valid_path(parent: &Path, target_name: &str, ext: &str) -> PathBuf {
     let mut new_path = parent.join(target_name).join(ext);
     let mut i = 1;
     while new_path.exists() {
-        new_path = parent.join(target_name).join(format!("_{}", i)).join(ext);
+        new_path = parent.join(target_name).join(format!("_{i}")).join(ext);
 
         i += 1;
     }

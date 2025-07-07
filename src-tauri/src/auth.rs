@@ -4,6 +4,7 @@ use crate::{error::AppError, server::init_server, AppState};
 
 #[tauri::command]
 pub async fn after_apikey_set(state: State<'_, AppState>) -> Result<(), AppError> {
+    log::debug!("after_apikey_set");
     let auth_store = state.auth_store.clone();
     let server = init_server(auth_store.clone())?;
 
@@ -15,11 +16,12 @@ pub async fn after_apikey_set(state: State<'_, AppState>) -> Result<(), AppError
 
         if let Some(apikey) = apikey {
             Err(AppError::Auth(format!(
-                "Failed to init server, apikey = {} is invalid",
-                apikey,
+                "Failed to init server, apikey = {apikey} is invalid"
             )))
         } else {
-            Err(AppError::Auth("Failed to init server, apikey lack".to_string()))
+            Err(AppError::Auth(
+                "Failed to init server, apikey lack".to_string(),
+            ))
         }
     }
 }

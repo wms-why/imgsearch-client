@@ -38,7 +38,7 @@ fn get_schema() -> &'static Arc<Schema> {
             Field::new("desc", DataType::Utf8, true),
             Field::new(
                 "embedding",
-                DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float32, true)), DIM),
+                DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float64, true)), DIM),
                 true,
             ),
         ]))
@@ -80,7 +80,10 @@ pub async fn save_batch(table: Arc<Table>, records: Vec<ImgIdx>) -> Result<(), A
     let mut root_builder = StringBuilder::new();
     let mut idxed_builder = BooleanBuilder::new();
     let mut desc_builder = StringBuilder::new();
-    let mut vec_builder = Float64Builder::with_capacity(DIM as usize * records.len());
+    let mut vec_builder = FixedSizeListBuilder::new(
+        Float64Builder::with_capacity(DIM as usize * records.len()),
+        DIM,
+    );
 
     for ImgIdx {
         name,
@@ -99,16 +102,15 @@ pub async fn save_batch(table: Arc<Table>, records: Vec<ImgIdx>) -> Result<(), A
 
         if let Some(vec) = vec {
             vec.into_iter().for_each(|f| {
-                vec_builder.append_value(f);
+                vec_builder.values().append_value(f);
             });
         } else {
             for _ in 0..DIM {
-                vec_builder.append_null();
+                vec_builder.values().append_null();
             }
         }
+        vec_builder.append(true);
     }
-
-    let mut vec_builder = FixedSizeListBuilder::new(vec_builder, DIM);
 
     let schema = get_schema();
 
@@ -131,7 +133,7 @@ pub async fn save_batch(table: Arc<Table>, records: Vec<ImgIdx>) -> Result<(), A
     let table = table.clone();
     tauri::async_runtime::spawn(async move {
         if let Err(e) = check_or_build_idx(table).await {
-            log::error!("check_or_build_idx error: {}", e);
+            log::error!("check_or_build_idx error: {e}");
         }
     });
 

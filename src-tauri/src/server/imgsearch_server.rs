@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use tauri::http::StatusCode;
-use tauri_plugin_http::reqwest;
+use tauri_plugin_http::reqwest::{self, Response};
 
 use crate::{
     error::AppError,
@@ -39,7 +39,7 @@ impl ImageIndexer for ImgseachServer {
         if r.status().is_success() {
             Ok(r.json::<ImageIndexResp>().await?)
         } else {
-            Err(judge_imgsearch_error(r.status()))
+            Err(judge_imgsearch_error(r).await)
         }
     }
 
@@ -52,14 +52,15 @@ impl ImageIndexer for ImgseachServer {
 
         for (i, p) in params.iter().enumerate() {
             form = form
-                .file(format!("thumbnail_{}", i), p.as_path().to_str().unwrap())
+                .file(format!("thumbnail_{i}"), p.as_path().to_str().unwrap())
                 .await?;
         }
 
         form = form.text("rename", rename.to_string());
 
-        let r = reqwest::Client::new()
+        let r: Response = reqwest::Client::new()
             .post(format!("{}/api/image_indexes/v1", &self.host))
+            .bearer_auth(&self.apikey)
             .multipart(form)
             .send()
             .await?;
@@ -67,17 +68,28 @@ impl ImageIndexer for ImgseachServer {
         if r.status().is_success() {
             Ok(r.json::<Vec<ImageIndexResp>>().await?)
         } else {
-            Err(judge_imgsearch_error(r.status()))
+            Err(judge_imgsearch_error(r).await)
         }
     }
 }
 
-fn judge_imgsearch_error(status: StatusCode) -> AppError {
+async fn judge_imgsearch_error(r: Response) -> AppError {
+    let status = r.status();
+
     match status {
         StatusCode::PRECONDITION_FAILED => {
             AppError::RightsLimit("image_index count not enough".to_string())
         }
         StatusCode::UNAUTHORIZED => AppError::Auth("apikey has been invalid".to_string()),
-        _ => AppError::Internal("unknown error".to_string()),
+        _ => {
+            let msg = r.text().await;
+
+            if let Err(e) = msg {
+                AppError::from(e)
+            } else {
+                let msg = msg.unwrap();
+                AppError::Internal(format!("unknown error, status: {status}, message: {msg}",))
+            }
+        }
     }
 }

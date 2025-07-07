@@ -12,7 +12,7 @@ use tauri_plugin_store::Store;
 use crate::error::AppError;
 use imgsearch_server::ImgseachServer;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct ImageIndexResp {
     pub vec: Vec<f64>,
     pub desc: String,
@@ -30,6 +30,8 @@ pub trait ImageIndexer {
 
 pub fn init_server(auth_store: Arc<Store<Wry>>) -> Result<Option<ImgseachServer>, AppError> {
     let binding = auth_store.get("apikey");
+    log::debug!("init_server, apikey: {binding:?}");
+
     if let Some(binding) = binding {
         let apikey = binding.as_str();
 

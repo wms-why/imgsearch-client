@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use log::debug;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
@@ -96,6 +97,8 @@ pub async fn index_images(
     drop(server);
 
     let idxes = if let Ok(r) = r {
+        debug!("index_images: {r:?}");
+
         if model.rename {
             let new_paths = model
                 .paths
@@ -138,6 +141,9 @@ pub async fn index_images(
             })
             .collect::<Vec<_>>()
     } else {
+        let err = r.unwrap_err();
+        debug!("index_images error: {err:?}");
+
         model
             .paths
             .iter()
