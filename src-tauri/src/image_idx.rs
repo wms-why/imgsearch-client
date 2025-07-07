@@ -1,7 +1,8 @@
 use std::sync::{Arc, OnceLock};
 
 use arrow_array::{
-    types::Float64Type, ArrayRef, FixedSizeListArray, RecordBatch, RecordBatchIterator, StringArray,
+    builder::{BooleanBuilder, FixedSizeListBuilder, Float64Builder, StringBuilder},
+    ArrayRef, RecordBatch, RecordBatchIterator,
 };
 use lancedb::{
     arrow::arrow_schema::{DataType, Field, Schema},
@@ -17,8 +18,10 @@ pub struct ImgIdx {
     pub name: String,
     pub path: String,
     pub root: String,
-    pub desc: String,
-    pub vec: Vec<f64>,
+    // img indexed ready?
+    pub idxed: bool,
+    pub desc: Option<String>,
+    pub vec: Option<Vec<f64>>,
 }
 
 static SCHEMA: OnceLock<Arc<Schema>> = OnceLock::new();
@@ -31,11 +34,12 @@ fn get_schema() -> &'static Arc<Schema> {
             Field::new("name", DataType::Utf8, false),
             Field::new("path", DataType::Utf8, false),
             Field::new("root", DataType::Utf8, false),
-            Field::new("desc", DataType::Utf8, false),
+            Field::new("idxed", DataType::Boolean, false),
+            Field::new("desc", DataType::Utf8, true),
             Field::new(
                 "embedding",
                 DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float32, true)), DIM),
-                false,
+                true,
             ),
         ]))
     })
@@ -71,55 +75,52 @@ async fn check_or_build_idx(table: Arc<Table>) -> Result<(), AppError> {
 }
 
 pub async fn save_batch(table: Arc<Table>, records: Vec<ImgIdx>) -> Result<(), AppError> {
-    let name = StringArray::from_iter_values(
-        records
-            .iter()
-            .map(|ImgIdx { name, .. }| name)
-            .collect::<Vec<_>>(),
-    );
+    let mut name_builder = StringBuilder::new();
+    let mut path_builder = StringBuilder::new();
+    let mut root_builder = StringBuilder::new();
+    let mut idxed_builder = BooleanBuilder::new();
+    let mut desc_builder = StringBuilder::new();
+    let mut vec_builder = Float64Builder::with_capacity(DIM as usize * records.len());
 
-    let path = StringArray::from_iter_values(
-        records
-            .iter()
-            .map(|ImgIdx { path, .. }| path)
-            .collect::<Vec<_>>(),
-    );
+    for ImgIdx {
+        name,
+        path,
+        root,
+        idxed,
+        desc,
+        vec,
+    } in records.into_iter()
+    {
+        name_builder.append_value(name);
+        path_builder.append_value(path);
+        root_builder.append_value(root);
+        idxed_builder.append_value(idxed);
+        desc_builder.append_option(desc);
 
-    let root = StringArray::from_iter_values(
-        records
-            .iter()
-            .map(|ImgIdx { root, .. }| root)
-            .collect::<Vec<_>>(),
-    );
+        if let Some(vec) = vec {
+            vec.into_iter().for_each(|f| {
+                vec_builder.append_value(f);
+            });
+        } else {
+            for _ in 0..DIM {
+                vec_builder.append_null();
+            }
+        }
+    }
 
-    let desc = StringArray::from_iter_values(
-        records
-            .iter()
-            .map(|ImgIdx { desc, .. }| desc)
-            .collect::<Vec<_>>(),
-    );
-
-    let embedding = FixedSizeListArray::from_iter_primitive::<Float64Type, _, _>(
-        records
-            .into_iter()
-            .map(|ImgIdx { vec, .. }| {
-                Some(vec.into_iter().map(Some).collect::<Vec<_>>())
-                // Some(vec)
-            })
-            .collect::<Vec<_>>(),
-        DIM,
-    );
+    let mut vec_builder = FixedSizeListBuilder::new(vec_builder, DIM);
 
     let schema = get_schema();
 
     let batch = RecordBatch::try_new(
         schema.clone(),
         vec![
-            Arc::new(name) as ArrayRef,
-            Arc::new(path) as ArrayRef,
-            Arc::new(root) as ArrayRef,
-            Arc::new(desc) as ArrayRef,
-            Arc::new(embedding) as ArrayRef,
+            Arc::new(name_builder.finish()) as ArrayRef,
+            Arc::new(path_builder.finish()) as ArrayRef,
+            Arc::new(root_builder.finish()) as ArrayRef,
+            Arc::new(idxed_builder.finish()) as ArrayRef,
+            Arc::new(desc_builder.finish()) as ArrayRef,
+            Arc::new(vec_builder.finish()) as ArrayRef,
         ],
     )?;
 

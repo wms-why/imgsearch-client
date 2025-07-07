@@ -1,14 +1,13 @@
 pub mod imgsearch_server;
 
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
-use dotenvy::var;
 /**
  * 定义大模型服务接口，目前只支持imgsearch
  */
 use serde::Deserialize;
-use tauri::App;
-use tauri_plugin_store::StoreExt;
+use tauri::Wry;
+use tauri_plugin_store::Store;
 
 use crate::error::AppError;
 use imgsearch_server::ImgseachServer;
@@ -29,15 +28,12 @@ pub trait ImageIndexer {
     ) -> Result<Vec<ImageIndexResp>, AppError>;
 }
 
-pub fn init_server(app: &App) -> Result<Option<ImgseachServer>, AppError> {
-    let auth = app.store("auth.json")?;
-    let binding = auth.get("apikey");
-
+pub fn init_server(auth_store: Arc<Store<Wry>>) -> Result<Option<ImgseachServer>, AppError> {
+    let binding = auth_store.get("apikey");
     if let Some(binding) = binding {
         let apikey = binding.as_str();
 
         if let Some(apikey) = apikey {
-
             let host = env!("NEXT_PUBLIC_IMGSEARCH_HOST");
             Ok(Some(ImgseachServer::new(apikey.to_string(), host.into())))
         } else {

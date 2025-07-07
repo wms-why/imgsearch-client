@@ -8,9 +8,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { get, GuideType, next } from "@/data/guide";
 import Link from "next/link";
 import ImgdirPage from "../imgdir/page";
-import { set } from "date-fns";
-import { boolean } from "zod";
 import { checkApiKey, saveUserInfo } from "@/data/auth";
+import { getAll } from "@/data/img-dirs";
 
 interface StepInfo {
   order: number;
@@ -50,7 +49,7 @@ export default function GuidePage() {
       }
       setStep(currentStep);
     };
-    // loadStep();
+    loadStep();
   }, []);
 
   useEffect(() => {
@@ -70,6 +69,17 @@ export default function GuidePage() {
         saveUserInfo(r);
         return true;
       }
+    }
+
+    if (step === "imgdir") {
+      const r = await getAll();
+
+      const valid = r.length != 0;
+
+      if (!valid) {
+        setValidError("image dirs is empty");
+      }
+      return valid;
     }
 
     return false;

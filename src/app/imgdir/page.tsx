@@ -10,8 +10,9 @@ import { getAll, addImgDir, removeImgDir, ImgDir } from "@/data/img-dirs";
 import { Trash2, Plus, FolderOpen } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { open } from '@tauri-apps/plugin-dialog';
+import CheckGuide from "@/components/check-guide";
 
-export default function ImgdirPage() {
+export default function ImgdirPage({ afterAdd }: { afterAdd?: () => Promise<void> }) {
   const [imgDirs, setImgDirs] = useState<ImgDir[]>([]);
   const [newDir, setNewDir] = useState<ImgDir>({ name: "", root: "", enableRename: false });
   const [loading, setLoading] = useState(false);
@@ -77,11 +78,21 @@ export default function ImgdirPage() {
     }
 
     try {
-      addImgDir(newDir, params => {
-        toast({
-          title: "Processing New Image Directory",
-          description: `proccessing ${params.current}/${params.total}`,
-        });
+      await addImgDir(newDir, params => {
+
+        if (params.error) {
+          toast({
+            title: "Error",
+            description: params.error,
+            variant: "destructive",
+          })
+        } else {
+          toast({
+            title: "Processing New Image Directory",
+            description: `proccessing ${params.current}/${params.total}`,
+          });
+        }
+
       }).catch(e => {
         toast({
           title: "Failed",
@@ -95,6 +106,7 @@ export default function ImgdirPage() {
         title: "Success",
         description: "Image directory added successfully",
       });
+      afterAdd?.();
     } catch (error) {
       toast({
         title: "Failed to add",
@@ -123,6 +135,7 @@ export default function ImgdirPage() {
 
   return (
     <div className="container mx-auto py-8">
+      <CheckGuide />
       <Dialog open={dialogOpen} onOpenChange={handDialogChange}>
         <DialogTrigger asChild>
           <Button className="mb-6" variant="ghost" >

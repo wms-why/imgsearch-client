@@ -10,6 +10,7 @@ export interface ImgDir {
 }
 
 export interface ImgDirProcessParams {
+    error: string | null
     total: number
     current: number
 }
@@ -31,28 +32,41 @@ export async function addImgDir(imgDir: ImgDir, process?: (p: ImgDirProcessParam
     });
 
     await ImgDirStore.set(imgDir.root, imgDir);
-    const images = await getAllImageInfo(imgDir.root);
 
-    const total = images.length;
-    const imgProcessSize = 5;
+    setTimeout(async () => {
+        const images = await getAllImageInfo(imgDir.root);
 
-    let i = 0;
-    while (i < total) {
-        const params = {
-            total,
-            current: i
-        } satisfies ImgDirProcessParams;
-        process?.(params);
-        const ps = images.slice(i, imgProcessSize).map(e => e.path);
-        try {
-            await indexImages(imgDir.root, ps, imgDir.enableRename);
-        } catch (e) {
-            error(`index image error: ${e}, ${ps.join('|')}`);
-            throw e;
+        const total = images.length;
+        const imgProcessSize = 5;
+
+        let i = 0;
+        while (i < total) {
+            const params = {
+                error: null,
+                total,
+                current: i
+            } satisfies ImgDirProcessParams;
+
+            process?.(params);
+            const ps = images.slice(i, imgProcessSize).map(e => e.path);
+            try {
+                await indexImages(imgDir.root, ps, imgDir.enableRename);
+            } catch (e) {
+                let msg = `index image error: ${e}}`;
+                error(msg);
+                const params = {
+                    error: msg,
+                    total,
+                    current: i
+                } satisfies ImgDirProcessParams;
+
+                process?.(params);
+            }
+
+            i += imgProcessSize;
         }
+    }, 1000)
 
-        i += imgProcessSize;
-    }
 }
 
 export async function removeImgDir(imgDirPath: string) {
@@ -75,7 +89,7 @@ export async function onStartup() {
 
                 const { type } = event;
                 if (isKind(type, 'create') && isKind(type.create, "file")) {
-                    console.log("create file", event.paths);
+                    debug(`create file, ${event.paths}`);
                 }
 
                 if (isKind(type, 'modify')) {

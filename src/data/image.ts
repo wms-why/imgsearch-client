@@ -8,7 +8,7 @@ async function processDirRecursively(parent: string, result: ImagePath[]) {
   for (const entry of entries) {
     const abpath = await join(parent, entry.name);
     if (entry.isDirectory) {
-      processDirRecursively(abpath, result);
+      await processDirRecursively(abpath, result);
     } else {
       ImageValidSubfix.find(subfix => entry.name.endsWith(subfix)) && result.push({ path: abpath, name: entry.name });
     }
@@ -22,7 +22,7 @@ export interface ImagePath {
 
 export async function getAllImageInfo(directory: string) {
   const result: ImagePath[] = [];
-  processDirRecursively(directory, result);
+  await processDirRecursively(directory, result);
 
   return result;
 }

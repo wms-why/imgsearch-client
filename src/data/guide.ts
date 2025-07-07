@@ -32,3 +32,9 @@ export async function next(): Promise<GuideType> {
 export async function get(): Promise<GuideType> {
     return await GuideStore.get("current");
 }
+
+export async function isFinished() {
+    let g = await get();
+
+    return g == "finished";
+}

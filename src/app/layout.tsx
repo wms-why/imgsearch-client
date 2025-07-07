@@ -1,3 +1,5 @@
+'use client'
+
 import "@/styles/globals.css"
 
 import { fontMono, fontSans } from "@/lib/fonts"
@@ -7,11 +9,13 @@ import { StyleSwitcher } from "@/components/style-switcher"
 import { TailwindIndicator } from "@/components/tailwind-indicator"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
+import Startup from "../components/startup"
+
 interface ExamplesLayoutProps {
   children: React.ReactNode
 }
 
-export default async function MyApp({ children }: ExamplesLayoutProps) {
+export default function MyApp({ children }: ExamplesLayoutProps) {
   console.log("MyApp started");
 
   return (
@@ -21,6 +25,7 @@ export default async function MyApp({ children }: ExamplesLayoutProps) {
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <div className="h-screen overflow-clip">
             <Menu />
+            <Startup />
             <div
               className={cn(
                 "h-screen overflow-auto border-t bg-background pb-8",

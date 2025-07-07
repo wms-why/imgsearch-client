@@ -69,10 +69,10 @@ pub async fn index_images(
     mut model: ImageIdxModels,
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
-
-    if state.server.is_none() {
+    if state.server.read().await.is_none() {
         return Err(AppError::Auth("server not ready".to_string()));
     }
+
     // let sever = state.server.as_ref().unwrap();
 
     let mut t = Vec::with_capacity(model.paths.len());
@@ -90,48 +90,74 @@ pub async fn index_images(
         t.push(thumbnail_path);
     }
 
-    let r = state.server.as_ref().unwrap().indexes(&t, model.rename).await?;
+    let server = state.server.read().await;
+    let server = server.as_ref().unwrap().clone();
+    let r = server.indexes(&t, model.rename).await;
+    drop(server);
 
-    if model.rename {
-        let new_paths = model
-            .paths
-            .iter()
-            .zip(r.iter())
-            .map(|(p, r)| {
-                if let Some(newname) = &r.name {
-                    if let Ok(new_path) = path_utils::rename(p, newname) {
-                        new_path.to_str().unwrap().to_string()
+    let idxes = if let Ok(r) = r {
+        if model.rename {
+            let new_paths = model
+                .paths
+                .iter()
+                .zip(r.iter())
+                .map(|(p, r)| {
+                    if let Some(newname) = &r.name {
+                        if let Ok(new_path) = path_utils::rename(p, newname) {
+                            new_path.to_str().unwrap().to_string()
+                        } else {
+                            p.to_string()
+                        }
                     } else {
                         p.to_string()
                     }
-                } else {
-                    p.to_string()
+                })
+                .collect::<Vec<_>>();
+
+            model.paths = new_paths;
+        }
+
+        model
+            .paths
+            .iter()
+            .zip(r.into_iter())
+            .map(|(p, ImageIndexResp { vec, desc, .. })| {
+                let current_path = std::path::Path::new(p.as_str());
+                image_idx::ImgIdx {
+                    name: current_path
+                        .file_name()
+                        .unwrap()
+                        .to_string_lossy()
+                        .to_string(),
+                    path: p.to_string(),
+                    root: model.root_dir.clone(),
+                    desc: Some(desc),
+                    idxed: true,
+                    vec: Some(vec),
                 }
             })
-            .collect::<Vec<_>>();
-
-        model.paths = new_paths;
-    }
-
-    let idxes = model
-        .paths
-        .iter()
-        .zip(r.into_iter())
-        .map(|(p, ImageIndexResp { vec, desc, .. })| {
-            let current_path = std::path::Path::new(p);
-            image_idx::ImgIdx {
-                name: current_path
-                    .file_name()
-                    .unwrap()
-                    .to_string_lossy()
-                    .to_string(),
-                path: p.to_string(),
-                root: model.root_dir.clone(),
-                desc,
-                vec,
-            }
-        })
-        .collect::<Vec<_>>();
+            .collect::<Vec<_>>()
+    } else {
+        model
+            .paths
+            .iter()
+            .map(|p| {
+                let current_path = std::path::Path::new(p.as_str());
+                image_idx::ImgIdx {
+                    name: current_path
+                        .file_name()
+                        .unwrap()
+                        .to_string_lossy()
+                        .to_string(),
+                    path: p.to_string(),
+                    root: model.root_dir.clone(),
+                    idxed: false,
+                    desc: None,
+                    vec: None,
+                }
+            })
+            .collect::<Vec<_>>()
+    };
 
     image_idx::save_batch(state.img_idx_tbl.clone(), idxes).await?;
 

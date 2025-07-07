@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator"
 import { AlbumArtwork } from "./components/album-artwork"
 import { getAll } from "@/data/img-dirs"
 import Link from "next/link"
+import CheckGuide from "@/components/check-guide"
 
 interface Album {
   name: string
@@ -56,6 +57,7 @@ export default function SearchPage() {
   return (
     <>
       <div>
+        <CheckGuide />
         {/* <Menu /> */}
         <div className="border-t">
           <div className="bg-background">
