@@ -3717,6 +3717,7 @@ dependencies = [
  "bytes",
  "dirs 6.0.0",
  "fast_image_resize",
+ "futures",
  "image",
  "lancedb",
  "log",

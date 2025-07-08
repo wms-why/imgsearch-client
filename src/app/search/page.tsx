@@ -5,21 +5,17 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 
-import { AlbumArtwork } from "./components/album-artwork"
+import { Album, AlbumArtwork } from "./components/album-artwork"
 import { getAll } from "@/data/img-dirs"
 import Link from "next/link"
 import CheckGuide from "@/components/check-guide"
-
-interface Album {
-  name: string
-  artist: string
-  cover: string
-}
+import { search } from "@/data/image"
 
 export default function SearchPage() {
   const [keywords, setKeywords] = useState('')
   const [isSearching, setIsSearching] = useState(false)
   const [searchResults, setSearchResults] = useState<Album[]>([])
+  const [errmsg, setErrMsg] = useState('');
 
   const [dirsExist, setDirsExist] = useState<boolean>(false);
 
@@ -29,29 +25,32 @@ export default function SearchPage() {
     })
   }, [])
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
+    setErrMsg('');
     if (keywords.trim() === '') {
       setSearchResults([])
       return
     }
 
     setIsSearching(true)
-    // 模拟API调用
-    setTimeout(() => {
-      setSearchResults([
-        {
-          name: `搜索结果1 - ${keywords}`,
-          artist: 'AI生成',
-          cover: '/icons/128x128.png'
-        },
-        {
-          name: `搜索结果2 - ${keywords}`,
-          artist: 'AI生成',
-          cover: '/icons/128x128.png'
-        }
-      ])
+
+    search(keywords, 12).then(result => {
+      let rs = result.map(item => {
+        return {
+          name: item.name,
+          path: item.path,
+          cover: item.thumbnail,
+          desc: item.desc,
+          score: item.score
+        } satisfies Album
+      });
+      setSearchResults(rs)
       setIsSearching(false)
-    }, 1000)
+    }).catch(error => {
+      setErrMsg(error)
+      setIsSearching(false)
+    });
+
   }
 
   return (
@@ -86,7 +85,7 @@ export default function SearchPage() {
                         Search
                       </Button>
                     </div>
-
+                    {errmsg && <div className="text-red-500">{errmsg}</div>}
                     <Separator />
                     {dirsExist ? isSearching ? (
                       <div className="py-8 text-center text-muted-foreground">
@@ -100,7 +99,7 @@ export default function SearchPage() {
                       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                         {searchResults.map((album) => (
                           <AlbumArtwork
-                            key={album.name}
+                            key={album.cover}
                             album={album}
                             className="w-full"
                             aspectRatio="square"

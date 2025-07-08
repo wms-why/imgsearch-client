@@ -11,10 +11,15 @@ use crate::{
 pub struct ImgseachServer {
     apikey: String,
     host: String,
+    client: reqwest::Client,
 }
 impl ImgseachServer {
     pub fn new(apikey: String, host: String) -> Self {
-        Self { apikey, host }
+        Self {
+            apikey,
+            host,
+            client: reqwest::Client::new(),
+        }
     }
 }
 
@@ -29,7 +34,8 @@ impl ImageIndexer for ImgseachServer {
             .await?
             .text("rename", rename.to_string());
 
-        let r = reqwest::Client::new()
+        let r = self
+            .client
             .post(format!("{}/api/image_index/v1", &self.host))
             .bearer_auth(&self.apikey)
             .multipart(form)
@@ -58,7 +64,8 @@ impl ImageIndexer for ImgseachServer {
 
         form = form.text("rename", rename.to_string());
 
-        let r: Response = reqwest::Client::new()
+        let r: Response = self
+            .client
             .post(format!("{}/api/image_indexes/v1", &self.host))
             .bearer_auth(&self.apikey)
             .multipart(form)
@@ -67,6 +74,22 @@ impl ImageIndexer for ImgseachServer {
 
         if r.status().is_success() {
             Ok(r.json::<Vec<ImageIndexResp>>().await?)
+        } else {
+            Err(judge_imgsearch_error(r).await)
+        }
+    }
+
+    async fn text_vectorize(&self, text: &str) -> Result<Vec<f32>, AppError> {
+        let r = self
+            .client
+            .get(format!("{}/api/text_vectorize/v1?text={}", &self.host, text))
+            .bearer_auth(&self.apikey)
+            .send()
+            .await?;
+
+        if r.status().is_success() {
+            let json: Vec<f32> = r.json().await?;
+            Ok(json)
         } else {
             Err(judge_imgsearch_error(r).await)
         }

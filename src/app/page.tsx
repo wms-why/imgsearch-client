@@ -1,5 +1,5 @@
-import GuidePage from "./guide/page";
+import SearchPage from "./search/page";
 
 export default function App() {
-  return <GuidePage />;
+  return <SearchPage />;
 }

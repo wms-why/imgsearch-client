@@ -19,25 +19,13 @@ pub struct ImageInfo {
     pub created_at: u64,
 }
 
-#[tauri::command]
-pub fn search_images(query: String) -> Vec<ImageInfo> {
-    // let images = state.images.lock().unwrap();
-    // images
-    //     .values()
-    //     .filter(|img| img.name.to_lowercase().contains(&query.to_lowercase()))
-    //     .cloned()
-    //     .collect()
-
-    Vec::new()
-}
-
 #[derive(Deserialize, Clone, Debug)]
 pub struct ImageIdxModel {
     #[serde(rename = "rootDir")]
-    pub root_dir: String,
-    pub path: String,
-    pub name: String,
-    pub rename: bool,
+    root_dir: String,
+    path: String,
+    name: String,
+    rename: bool,
 }
 
 // #[tauri::command(rename_all = "snake_case")]
@@ -76,7 +64,7 @@ pub async fn index_images(
 
     // let sever = state.server.as_ref().unwrap();
 
-    let mut t = Vec::with_capacity(model.paths.len());
+    let mut thumbnails = Vec::with_capacity(model.paths.len());
     for path in model.paths.iter() {
         let source_bs = std::fs::read(Path::new(path))?;
 
@@ -88,13 +76,12 @@ pub async fn index_images(
             None => image_utils::save_local(&source_bs, format)?,
         };
 
-        t.push(thumbnail_path);
+        thumbnails.push(thumbnail_path);
     }
 
     let server = state.server.read().await;
     let server = server.as_ref().unwrap().clone();
-    let r = server.indexes(&t, model.rename).await;
-    drop(server);
+    let r = server.indexes(&thumbnails, model.rename).await;
 
     let idxes = if let Ok(r) = r {
         debug!("index_images: {r:?}");
@@ -123,8 +110,9 @@ pub async fn index_images(
         model
             .paths
             .iter()
+            .zip(thumbnails.iter())
             .zip(r.into_iter())
-            .map(|(p, ImageIndexResp { vec, desc, .. })| {
+            .map(|((p, t), ImageIndexResp { vec, desc, .. })| {
                 let current_path = std::path::Path::new(p.as_str());
                 image_idx::ImgIdx {
                     name: current_path
@@ -134,6 +122,7 @@ pub async fn index_images(
                         .to_string(),
                     path: p.to_string(),
                     root: model.root_dir.clone(),
+                    thumbnail: t.as_path().to_str().unwrap().to_string(),
                     desc: Some(desc),
                     idxed: true,
                     vec: Some(vec),
@@ -147,7 +136,8 @@ pub async fn index_images(
         model
             .paths
             .iter()
-            .map(|p| {
+            .zip(thumbnails.iter())
+            .map(|(p, t)| {
                 let current_path = std::path::Path::new(p.as_str());
                 image_idx::ImgIdx {
                     name: current_path
@@ -157,6 +147,7 @@ pub async fn index_images(
                         .to_string(),
                     path: p.to_string(),
                     root: model.root_dir.clone(),
+                    thumbnail: t.as_path().to_str().unwrap().to_string(),
                     idxed: false,
                     desc: None,
                     vec: None,
@@ -168,6 +159,26 @@ pub async fn index_images(
     image_idx::save_batch(state.img_idx_tbl.clone(), idxes).await?;
 
     Ok(())
+}
+
+#[derive(Deserialize)]
+pub struct SearchModel {
+    keyword: String,
+    top: usize,
+}
+#[tauri::command]
+pub async fn search(
+    model: SearchModel,
+    state: State<'_, AppState>,
+) -> Result<Vec<image_idx::ImgSearchResult>, AppError> {
+    if state.server.read().await.is_none() {
+        return Err(AppError::Auth("server not ready".to_string()));
+    }
+    let server = state.server.read().await;
+    let server = server.as_ref().unwrap().clone();
+    let r = server.text_vectorize(&model.keyword).await?;
+    let r = image_idx::search(state.img_idx_tbl.clone(), &r, model.top).await?;
+    Ok(r)
 }
 
 #[tauri::command]

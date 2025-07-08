@@ -14,7 +14,7 @@ use imgsearch_server::ImgseachServer;
 
 #[derive(Deserialize, Debug)]
 pub struct ImageIndexResp {
-    pub vec: Vec<f64>,
+    pub vec: Vec<f32>,
     pub desc: String,
     pub name: Option<String>,
 }
@@ -26,6 +26,8 @@ pub trait ImageIndexer {
         params: &[PathBuf],
         rename: bool,
     ) -> Result<Vec<ImageIndexResp>, AppError>;
+
+    async fn text_vectorize(&self, text: &str) -> Result<Vec<f32>, AppError>;
 }
 
 pub fn init_server(auth_store: Arc<Store<Wry>>) -> Result<Option<ImgseachServer>, AppError> {

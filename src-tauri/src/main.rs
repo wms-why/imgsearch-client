@@ -53,6 +53,7 @@ fn main() {
             // guide::save_guide,
             // image::search_images
             image::index_images,
+            image::search,
             auth::after_apikey_set
         ])
         .plugin(tauri_plugin_fs::init())

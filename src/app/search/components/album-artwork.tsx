@@ -12,13 +12,15 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
+import { convertFileSrc } from "@tauri-apps/api/core"
 
 export interface Album {
   name: string
-  artist: string
+  path: string
   cover: string
+  desc: string | null
+  score: number
 }
-
 
 interface AlbumArtworkProps extends React.HTMLAttributes<HTMLDivElement> {
   album: Album
@@ -52,6 +54,8 @@ export function AlbumArtwork({
   className,
   ...props
 }: AlbumArtworkProps) {
+  let cover = convertFileSrc(album.cover);
+
   return (
     <div className={cn("space-y-3", className)} {...props}>
       {/* <ContextMenu>
@@ -110,7 +114,7 @@ export function AlbumArtwork({
 
       <div className="overflow-hidden rounded-md">
         <Image
-          src={album.cover}
+          src={cover}
           alt={album.name}
           width={width}
           height={height}
@@ -122,7 +126,7 @@ export function AlbumArtwork({
       </div>
       <div className="space-y-1 text-sm">
         <h3 className="font-medium leading-none">{album.name}</h3>
-        <p className="text-xs text-muted-foreground">{album.artist}</p>
+        <p className="text-xs text-muted-foreground">{album.desc} | {album.score}</p>
       </div>
     </div>
   )

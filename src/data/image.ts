@@ -39,7 +39,7 @@ export interface ImagePaths {
 }
 export async function indexImages(rootDir: string, paths: string[], rename: boolean) {
 
-  return await invoke("index_images", {
+  return await invoke<void>("index_images", {
     model: {
       rootDir,
       paths,
@@ -49,3 +49,14 @@ export async function indexImages(rootDir: string, paths: string[], rename: bool
 
 }
 
+export interface SearchResult {
+  name: string,
+  path: string,
+  root: string,
+  thumbnail: string,
+  desc: string | null,
+  score: number,
+}
+export async function search(keyword: string, top: number) {
+  return await invoke<SearchResult[]>("search", { model: { keyword, top } });
+}
