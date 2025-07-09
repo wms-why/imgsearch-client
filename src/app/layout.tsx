@@ -16,16 +16,14 @@ interface ExamplesLayoutProps {
 }
 
 export default function MyApp({ children }: ExamplesLayoutProps) {
-  console.log("MyApp started");
-
   return (
     <html lang="en" suppressHydrationWarning className="overflow-clip bg-black">
       <head />
       <body className="overflow-clip bg-transparent font-sans antialiased scrollbar-none">
+        <Startup />
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <div className="h-screen overflow-clip">
             <Menu />
-            <Startup />
             <div
               className={cn(
                 "h-screen overflow-auto border-t bg-background pb-8",

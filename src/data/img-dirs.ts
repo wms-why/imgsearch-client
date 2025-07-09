@@ -2,6 +2,7 @@ import { LazyStore } from '@tauri-apps/plugin-store';
 import { getAllImageInfo, indexImage, indexImages } from './image';
 import { warn, debug, trace, info, error } from '@tauri-apps/plugin-log';
 import { watch, WatchEventKind, WatchEventKindCreate } from '@tauri-apps/plugin-fs';
+import { invoke } from '@tauri-apps/api/core';
 
 export interface ImgDir {
     name: string
@@ -79,25 +80,38 @@ export async function onStartup() {
     const ps = await getAll();
 
     function isKind<K extends string>(obj: any, kind: K): obj is Record<K, any> {
-        return typeof obj === 'object' && obj !== null && kind in obj;
+        return typeof obj === 'object' && obj !== null && (kind in obj || kind == obj.kind);
     }
 
     ps.forEach(async dir => {
+        let modifyTimeout: NodeJS.Timeout | null = null;
+
         await watch(
             dir.root,
             (event) => {
 
-                const { type } = event;
-                if (isKind(type, 'create') && isKind(type.create, "file")) {
-                    debug(`create file, ${event.paths}`);
-                }
+                console.log(event);
 
+                const { type } = event;
+
+                /**
+                 * win11 创建文件与修改文件事件重叠，忽略create事件
+                 * 忽略创建文件夹
+                 */
+                // if (isKind(type, 'create') && isKind(type.create, "file")) {
+                //     debug(`create file, ${event.paths}`);
+                // }
+
+                /**
+                 * modify any 为新增文件、文件夹
+                 * 当对象是文件夹时忽略
+                 */
                 if (isKind(type, 'modify')) {
-                    if (isKind(type.modify, "data")) {
-                        console.log("modify file", event.paths);
-                    }
                     if (isKind(type.modify, "rename")) {
+                        invoke<void>("rename", { model: { path: event.paths[0], newPath: event.paths[1] } })
                         console.log("modify rename", event.paths);
+                    } else {
+                        console.log("modify any", event.paths);
                     }
                 }
 
@@ -116,5 +130,8 @@ export async function onStartup() {
                 delayMs: 500,
             }
         );
+
+        console.log("watching " + dir.root + " success");
+
     })
 } 

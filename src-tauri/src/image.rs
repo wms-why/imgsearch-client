@@ -8,7 +8,7 @@ use crate::{
     error::AppError,
     image_idx, image_utils, path_utils,
     server::{ImageIndexResp, ImageIndexer},
-    AppState,
+    uuid_utils, AppState,
 };
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -84,7 +84,6 @@ pub async fn index_images(
     let r = server.indexes(&thumbnails, model.rename).await;
 
     let idxes = if let Ok(r) = r {
-        debug!("index_images: {r:?}");
 
         if model.rename {
             let new_paths = model
@@ -114,19 +113,18 @@ pub async fn index_images(
             .zip(r.into_iter())
             .map(|((p, t), ImageIndexResp { vec, desc, .. })| {
                 let current_path = std::path::Path::new(p.as_str());
-                image_idx::ImgIdx {
-                    name: current_path
+                image_idx::ImgIdx::new(
+                    current_path
                         .file_name()
                         .unwrap()
                         .to_string_lossy()
                         .to_string(),
-                    path: p.to_string(),
-                    root: model.root_dir.clone(),
-                    thumbnail: t.as_path().to_str().unwrap().to_string(),
-                    desc: Some(desc),
-                    idxed: true,
-                    vec: Some(vec),
-                }
+                    p.to_string(),
+                    model.root_dir.clone(),
+                    t.as_path().to_str().unwrap().to_string(),
+                    desc,
+                    vec,
+                )
             })
             .collect::<Vec<_>>()
     } else {
@@ -139,19 +137,16 @@ pub async fn index_images(
             .zip(thumbnails.iter())
             .map(|(p, t)| {
                 let current_path = std::path::Path::new(p.as_str());
-                image_idx::ImgIdx {
-                    name: current_path
+                image_idx::ImgIdx::new_empty(
+                    current_path
                         .file_name()
                         .unwrap()
                         .to_string_lossy()
                         .to_string(),
-                    path: p.to_string(),
-                    root: model.root_dir.clone(),
-                    thumbnail: t.as_path().to_str().unwrap().to_string(),
-                    idxed: false,
-                    desc: None,
-                    vec: None,
-                }
+                    p.to_string(),
+                    model.root_dir.clone(),
+                    t.as_path().to_str().unwrap().to_string(),
+                )
             })
             .collect::<Vec<_>>()
     };
@@ -183,6 +178,35 @@ pub async fn search(
 
 #[tauri::command]
 pub fn delete_image(id: String) -> Result<(), String> {
+    // if let Some(image) = images.remove(&id) {
+    //     // 删除文件
+    //     fs::remove_file(&image.path).map_err(|e| format!("删除文件失败: {}", e))?;
+    //     Ok(())
+    // } else {
+    //     Err("找不到指定图片".to_string())
+    // }
+    Ok(())
+}
+
+/**
+ * 重命名文件或者文件夹
+ */
+#[derive(Deserialize)]
+struct RenameModel {
+    old: String,
+    new: String,
+}
+#[tauri::command]
+pub fn rename(model: RenameModel) -> Result<(), String> {
+    let new = Path::new(&model.new);
+    if new.is_file() {
+    } else if new.is_dir() {
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn rename_dir(id: String) -> Result<(), String> {
     // if let Some(image) = images.remove(&id) {
     //     // 删除文件
     //     fs::remove_file(&image.path).map_err(|e| format!("删除文件失败: {}", e))?;

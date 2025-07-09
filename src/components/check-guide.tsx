@@ -14,7 +14,6 @@ export default function CheckGuide() {
         router.push("/guide");
       }
     });
-    imgDirsStartup();
   }, [router]);
 
   return null; // 不渲染任何东西，只做副作用

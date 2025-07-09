@@ -10,16 +10,17 @@ use lancedb::{
         arrow_schema::{DataType, Field, Schema},
         IntoArrowStream,
     },
-    index::vector::IvfPqIndexBuilder,
-    query::{ExecutableQuery, QueryBase},
+    index::{scalar::BitmapIndexBuilder, vector::IvfPqIndexBuilder},
+    query::{ExecutableQuery, HasQuery, QueryBase, QueryFilter, Select},
     Connection, Table,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::error::AppError;
+use crate::{error::AppError, uuid_utils};
 
 #[derive(Deserialize, Serialize)]
 pub struct ImgIdx {
+    pub id: String,
     pub name: String,
     pub path: String,
     pub root: String,
@@ -30,6 +31,41 @@ pub struct ImgIdx {
     pub vec: Option<Vec<f32>>,
 }
 
+impl ImgIdx {
+    pub fn new(
+        name: String,
+        path: String,
+        root: String,
+        thumbnail: String,
+        desc: String,
+        vec: Vec<f32>,
+    ) -> Self {
+        Self {
+            id: uuid_utils::get(),
+            name,
+            path,
+            root,
+            thumbnail,
+            desc: Some(desc),
+            idxed: true,
+            vec: Some(vec),
+        }
+    }
+
+    pub fn new_empty(name: String, path: String, root: String, thumbnail: String) -> Self {
+        Self {
+            id: uuid_utils::get(),
+            name,
+            path,
+            root,
+            thumbnail,
+            desc: None,
+            idxed: false,
+            vec: None,
+        }
+    }
+}
+
 static SCHEMA: OnceLock<Arc<Schema>> = OnceLock::new();
 static DIM: i32 = 768;
 static IMG_IDX_TABLE_NAME: &str = "img_idx";
@@ -37,6 +73,7 @@ static IMG_IDX_BUILD_DIVIDER: usize = 256;
 fn get_schema() -> &'static Arc<Schema> {
     SCHEMA.get_or_init(|| {
         Arc::new(Schema::new(vec![
+            Field::new("id", DataType::FixedSizeBinary(16), false),
             Field::new("name", DataType::Utf8, false),
             Field::new("path", DataType::Utf8, false),
             Field::new("root", DataType::Utf8, false),
@@ -63,6 +100,10 @@ pub async fn get_table(db: &Connection) -> Result<Table, AppError> {
         .execute()
         .await?;
 
+    r.create_index(&["id"], 
+        lancedb::index::Index::Bitmap(BitmapIndexBuilder{})
+    ).execute().await?;
+
     Ok(r)
 }
 
@@ -82,6 +123,7 @@ async fn check_or_build_idx(table: Arc<Table>) -> Result<(), AppError> {
 }
 
 pub async fn save_batch(table: Arc<Table>, records: Vec<ImgIdx>) -> Result<(), AppError> {
+    let mut id_builder = StringBuilder::new();
     let mut name_builder = StringBuilder::new();
     let mut path_builder = StringBuilder::new();
     let mut root_builder = StringBuilder::new();
@@ -94,6 +136,7 @@ pub async fn save_batch(table: Arc<Table>, records: Vec<ImgIdx>) -> Result<(), A
     );
 
     for ImgIdx {
+        id,
         name,
         path,
         root,
@@ -103,6 +146,7 @@ pub async fn save_batch(table: Arc<Table>, records: Vec<ImgIdx>) -> Result<(), A
         vec,
     } in records.into_iter()
     {
+        id_builder.append_value(id);
         name_builder.append_value(name);
         path_builder.append_value(path);
         root_builder.append_value(root);
@@ -153,6 +197,7 @@ pub async fn save_batch(table: Arc<Table>, records: Vec<ImgIdx>) -> Result<(), A
 
 #[derive(Clone, Deserialize, Debug, Serialize)]
 pub struct ImgSearchResult {
+    pub id: String,
     pub name: String,
     pub path: String,
     pub root: String,
@@ -162,6 +207,13 @@ pub struct ImgSearchResult {
 }
 
 fn map_batch_to_imgsearchresult(batch: &RecordBatch) -> Result<Vec<ImgSearchResult>, AppError> {
+    let id_array = batch
+        .column_by_name("id")
+        .ok_or_else(|| AppError::Internal("Missing column: id".to_string()))?
+        .as_any()
+        .downcast_ref::<arrow_array::StringArray>()
+        .ok_or_else(|| AppError::Internal("Invalid type for column: id".to_string()))?;
+
     let name_array = batch
         .column_by_name("name")
         .ok_or_else(|| AppError::Internal("Missing column: name".to_string()))?
@@ -208,6 +260,7 @@ fn map_batch_to_imgsearchresult(batch: &RecordBatch) -> Result<Vec<ImgSearchResu
     let mut res = Vec::with_capacity(batch.num_rows());
 
     for row in 0..batch.num_rows() {
+        let id = id_array.value(row).to_string();
         let name = name_array.value(row).to_string();
         let path = path_array.value(row).to_string();
         let root = root_array.value(row).to_string();
@@ -221,6 +274,7 @@ fn map_batch_to_imgsearchresult(batch: &RecordBatch) -> Result<Vec<ImgSearchResu
         let score = score_array.value(row);
 
         res.push(ImgSearchResult {
+            id,
             name,
             path,
             root,
@@ -254,4 +308,14 @@ pub async fn search(
         results.append(&mut items);
     }
     Ok(results)
+}
+
+pub async fn update_path(table: Arc<Table>, old: &str, new: &str) -> Result<(), AppError> {
+    let query = table.query();
+    let qr = query.mut_query();
+    qr.select = Select::Columns(vec!["id".to_string(), "path".to_string()]);
+    qr.filter = Some(QueryFilter::Sql(format!("path like '{old}%'")));
+
+    let stream = query.execute().await?;
+    Ok(())
 }
