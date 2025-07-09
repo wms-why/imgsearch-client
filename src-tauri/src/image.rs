@@ -6,7 +6,8 @@ use tauri::State;
 
 use crate::{
     error::AppError,
-    image_idx, image_utils, path_utils,
+    image_idx::{self, update_path, update_path_prefix},
+    image_utils, path_utils,
     server::{ImageIndexResp, ImageIndexer},
     uuid_utils, AppState,
 };
@@ -84,7 +85,6 @@ pub async fn index_images(
     let r = server.indexes(&thumbnails, model.rename).await;
 
     let idxes = if let Ok(r) = r {
-
         if model.rename {
             let new_paths = model
                 .paths
@@ -192,21 +192,23 @@ pub fn delete_image(id: String) -> Result<(), String> {
  * 重命名文件或者文件夹
  */
 #[derive(Deserialize)]
-struct RenameModel {
+pub struct RenameModel {
     old: String,
     new: String,
 }
 #[tauri::command]
-pub fn rename(model: RenameModel) -> Result<(), String> {
+pub async fn rename(model: RenameModel, state: State<'_, AppState>) -> Result<(), AppError> {
     let new = Path::new(&model.new);
     if new.is_file() {
+        update_path(state.img_idx_tbl.clone(), &model.old, &model.new).await?;
     } else if new.is_dir() {
+        update_path_prefix(state.img_idx_tbl.clone(), &model.old, &model.new).await?;
     }
     Ok(())
 }
 
 #[tauri::command]
-pub fn rename_dir(id: String) -> Result<(), String> {
+pub fn create_files(model: Vec<String>, state: State<'_, AppState>) -> Result<(), String> {
     // if let Some(image) = images.remove(&id) {
     //     // 删除文件
     //     fs::remove_file(&image.path).map_err(|e| format!("删除文件失败: {}", e))?;

@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use tauri::{async_runtime::{ RwLock}, Manager, Wry};
+use tauri::{async_runtime::RwLock, Manager, Wry};
 use tauri_plugin_store::{Store, StoreExt};
 
 use crate::server::init_server;
@@ -54,6 +54,7 @@ fn main() {
             // image::search_images
             image::index_images,
             image::search,
+            image::rename,
             auth::after_apikey_set
         ])
         .plugin(tauri_plugin_fs::init())

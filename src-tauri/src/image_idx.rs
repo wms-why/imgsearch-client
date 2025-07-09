@@ -100,9 +100,12 @@ pub async fn get_table(db: &Connection) -> Result<Table, AppError> {
         .execute()
         .await?;
 
-    r.create_index(&["id"], 
-        lancedb::index::Index::Bitmap(BitmapIndexBuilder{})
-    ).execute().await?;
+    r.create_index(
+        &["id"],
+        lancedb::index::Index::Bitmap(BitmapIndexBuilder {}),
+    )
+    .execute()
+    .await?;
 
     Ok(r)
 }
@@ -310,12 +313,80 @@ pub async fn search(
     Ok(results)
 }
 
-pub async fn update_path(table: Arc<Table>, old: &str, new: &str) -> Result<(), AppError> {
-    let query = table.query();
+pub async fn update_path_prefix(table: Arc<Table>, old: &str, new: &str) -> Result<(), AppError> {
+    let mut query = table.query();
     let qr = query.mut_query();
     qr.select = Select::Columns(vec!["id".to_string(), "path".to_string()]);
     qr.filter = Some(QueryFilter::Sql(format!("path like '{old}%'")));
 
     let stream = query.execute().await?;
+
+    let mut results = Vec::new();
+    // 消费 stream
+    futures::pin_mut!(stream);
+    while let Some(batch) = stream.try_next().await? {
+        let id_array = batch
+            .column_by_name("id")
+            .ok_or_else(|| AppError::Internal("Missing column: id".to_string()))?
+            .as_any()
+            .downcast_ref::<arrow_array::StringArray>()
+            .ok_or_else(|| AppError::Internal("Invalid type for column: id".to_string()))?;
+
+        let path_array = batch
+            .column_by_name("path")
+            .ok_or_else(|| AppError::Internal("Missing column: path".to_string()))?
+            .as_any()
+            .downcast_ref::<arrow_array::StringArray>()
+            .ok_or_else(|| AppError::Internal("Invalid type for column: path".to_string()))?;
+
+        for row in 0..batch.num_rows() {
+            let id = id_array.value(row).to_string();
+            let path = path_array.value(row).to_string();
+
+            results.push((id, path));
+        }
+    }
+    let mut id_builder = StringBuilder::new();
+    let mut path_builder = StringBuilder::new();
+    results.into_iter().for_each(|(id, path)| {
+        let p = path.replace(old, new);
+
+        id_builder.append_value(id);
+        path_builder.append_value(p);
+    });
+
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("id", DataType::FixedSizeBinary(16), false),
+        Field::new("path", DataType::Utf8, false),
+    ]));
+    let new_data = RecordBatchIterator::new(
+        vec![RecordBatch::try_new(
+            schema.clone(),
+            vec![
+                Arc::new(id_builder.finish()),
+                Arc::new(path_builder.finish()),
+            ],
+        )
+        .unwrap()]
+        .into_iter()
+        .map(Ok),
+        schema.clone(),
+    );
+    // Perform an upsert operation
+    table
+        .merge_insert(&["id"])
+        .execute(Box::new(new_data))
+        .await?;
+
+    Ok(())
+}
+
+pub async fn update_path(table: Arc<Table>, old: &str, new: &str) -> Result<(), AppError> {
+    table
+        .update()
+        .column("path", new)
+        .only_if(format!("path = {old}"))
+        .execute()
+        .await?;
     Ok(())
 }
