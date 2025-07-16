@@ -6,10 +6,9 @@
 
 use std::sync::Arc;
 
+use crate::server::init_server;
 use tauri::{async_runtime::RwLock, Manager, Wry};
 use tauri_plugin_store::{Store, StoreExt};
-
-use crate::server::init_server;
 
 mod auth;
 mod db;
@@ -35,6 +34,10 @@ impl AppState {
 }
 
 fn main() {
+    if let Err(e) = dotenvy::dotenv() {
+        log::warn!("not .env fount");
+    }
+
     tauri::Builder::default()
         .plugin(
             tauri_plugin_log::Builder::new()
@@ -55,6 +58,8 @@ fn main() {
             image::index_images,
             image::search,
             image::rename,
+            image::show_all,
+            image::remove_img_dir,
             auth::after_apikey_set
         ])
         .plugin(tauri_plugin_fs::init())

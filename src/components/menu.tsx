@@ -90,9 +90,16 @@ export function Menu() {
 
         <MenubarMenu>
           <MenubarTrigger >
-            <Link href="/imgdir">Image Directory</Link>
+            <Link href="/imgdir">Directory</Link>
           </MenubarTrigger>
         </MenubarMenu>
+
+        <MenubarMenu>
+          <MenubarTrigger >
+            <Link href="/images">Library</Link>
+          </MenubarTrigger>
+        </MenubarMenu>
+
 
 
         <MenuModeToggle />

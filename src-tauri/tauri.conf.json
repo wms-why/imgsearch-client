@@ -41,7 +41,7 @@
         "style-src": "'unsafe-inline' 'self' https://fonts.googleapis.com"
       }
     },
-    "withGlobalTauri": true
+    "withGlobalTauri": false
   },
   "bundle": {
     "active": true,

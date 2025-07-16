@@ -1,5 +1,6 @@
 use std::sync::{Arc, OnceLock};
 
+use crate::{error::AppError, uuid_utils};
 use arrow_array::{
     builder::{BooleanBuilder, FixedSizeListBuilder, Float32Builder, StringBuilder},
     Array, ArrayRef, RecordBatch, RecordBatchIterator,
@@ -10,13 +11,11 @@ use lancedb::{
         arrow_schema::{DataType, Field, Schema},
         IntoArrowStream,
     },
-    index::{scalar::BitmapIndexBuilder, vector::IvfPqIndexBuilder},
+    index::{scalar::BTreeIndexBuilder, vector::IvfPqIndexBuilder},
     query::{ExecutableQuery, HasQuery, QueryBase, QueryFilter, Select},
     Connection, Table,
 };
 use serde::{Deserialize, Serialize};
-
-use crate::{error::AppError, uuid_utils};
 
 #[derive(Deserialize, Serialize)]
 pub struct ImgIdx {
@@ -24,6 +23,7 @@ pub struct ImgIdx {
     pub name: String,
     pub path: String,
     pub root: String,
+    pub sign: String,
     pub thumbnail: String,
     // img indexed ready?
     pub idxed: bool,
@@ -36,6 +36,7 @@ impl ImgIdx {
         name: String,
         path: String,
         root: String,
+        sign: String,
         thumbnail: String,
         desc: String,
         vec: Vec<f32>,
@@ -45,6 +46,7 @@ impl ImgIdx {
             name,
             path,
             root,
+            sign,
             thumbnail,
             desc: Some(desc),
             idxed: true,
@@ -52,12 +54,19 @@ impl ImgIdx {
         }
     }
 
-    pub fn new_empty(name: String, path: String, root: String, thumbnail: String) -> Self {
+    pub fn new_empty(
+        name: String,
+        path: String,
+        root: String,
+        sign: String,
+        thumbnail: String,
+    ) -> Self {
         Self {
             id: uuid_utils::get(),
             name,
             path,
             root,
+            sign,
             thumbnail,
             desc: None,
             idxed: false,
@@ -73,10 +82,11 @@ static IMG_IDX_BUILD_DIVIDER: usize = 256;
 fn get_schema() -> &'static Arc<Schema> {
     SCHEMA.get_or_init(|| {
         Arc::new(Schema::new(vec![
-            Field::new("id", DataType::FixedSizeBinary(16), false),
+            Field::new("id", DataType::Utf8, false),
             Field::new("name", DataType::Utf8, false),
             Field::new("path", DataType::Utf8, false),
             Field::new("root", DataType::Utf8, false),
+            Field::new("sign", DataType::Utf8, false),
             Field::new("thumbnail", DataType::Utf8, false),
             Field::new("idxed", DataType::Boolean, false),
             Field::new("desc", DataType::Utf8, true),
@@ -100,12 +110,9 @@ pub async fn get_table(db: &Connection) -> Result<Table, AppError> {
         .execute()
         .await?;
 
-    r.create_index(
-        &["id"],
-        lancedb::index::Index::Bitmap(BitmapIndexBuilder {}),
-    )
-    .execute()
-    .await?;
+    r.create_index(&["id"], lancedb::index::Index::BTree(BTreeIndexBuilder {}))
+        .execute()
+        .await?;
 
     Ok(r)
 }
@@ -130,6 +137,7 @@ pub async fn save_batch(table: Arc<Table>, records: Vec<ImgIdx>) -> Result<(), A
     let mut name_builder = StringBuilder::new();
     let mut path_builder = StringBuilder::new();
     let mut root_builder = StringBuilder::new();
+    let mut sign_builder = StringBuilder::new();
     let mut thumbnail_builder = StringBuilder::new();
     let mut idxed_builder = BooleanBuilder::new();
     let mut desc_builder = StringBuilder::new();
@@ -143,6 +151,7 @@ pub async fn save_batch(table: Arc<Table>, records: Vec<ImgIdx>) -> Result<(), A
         name,
         path,
         root,
+        sign,
         thumbnail,
         idxed,
         desc,
@@ -153,6 +162,7 @@ pub async fn save_batch(table: Arc<Table>, records: Vec<ImgIdx>) -> Result<(), A
         name_builder.append_value(name);
         path_builder.append_value(path);
         root_builder.append_value(root);
+        sign_builder.append_value(sign);
         thumbnail_builder.append_value(thumbnail);
         idxed_builder.append_value(idxed);
         desc_builder.append_option(desc);
@@ -173,10 +183,22 @@ pub async fn save_batch(table: Arc<Table>, records: Vec<ImgIdx>) -> Result<(), A
 
     let batch = RecordBatch::try_new(
         schema.clone(),
+        /**
+        * id
+           name
+           path
+           root
+           sign
+           thumbnail
+           idxed
+           desc
+        */
         vec![
+            Arc::new(id_builder.finish()) as ArrayRef,
             Arc::new(name_builder.finish()) as ArrayRef,
             Arc::new(path_builder.finish()) as ArrayRef,
             Arc::new(root_builder.finish()) as ArrayRef,
+            Arc::new(sign_builder.finish()) as ArrayRef,
             Arc::new(thumbnail_builder.finish()) as ArrayRef,
             Arc::new(idxed_builder.finish()) as ArrayRef,
             Arc::new(desc_builder.finish()) as ArrayRef,
@@ -205,8 +227,9 @@ pub struct ImgSearchResult {
     pub path: String,
     pub root: String,
     pub thumbnail: String,
+    pub idxed: bool,
     pub desc: Option<String>,
-    pub score: f32,
+    pub score: Option<f32>,
 }
 
 fn map_batch_to_imgsearchresult(batch: &RecordBatch) -> Result<Vec<ImgSearchResult>, AppError> {
@@ -245,6 +268,13 @@ fn map_batch_to_imgsearchresult(batch: &RecordBatch) -> Result<Vec<ImgSearchResu
         .downcast_ref::<arrow_array::StringArray>()
         .ok_or_else(|| AppError::Internal("Invalid type for column: thumbnail".to_string()))?;
 
+    let idxed_array = batch
+        .column_by_name("idxed")
+        .ok_or_else(|| AppError::Internal("Missing column: idxed".to_string()))?
+        .as_any()
+        .downcast_ref::<arrow_array::BooleanArray>()
+        .ok_or_else(|| AppError::Internal("Invalid type for column: idxed".to_string()))?;
+
     let desc_array = batch
         .column_by_name("desc")
         .ok_or_else(|| AppError::Internal("Missing column: desc".to_string()))?
@@ -252,13 +282,21 @@ fn map_batch_to_imgsearchresult(batch: &RecordBatch) -> Result<Vec<ImgSearchResu
         .downcast_ref::<arrow_array::StringArray>()
         .ok_or_else(|| AppError::Internal("Invalid type for column: desc".to_string()))?;
 
-    let score_array = batch
+    let score_array_result = batch
         .column_by_name("_distance")
         .or_else(|| batch.column_by_name("score"))
-        .ok_or_else(|| AppError::Internal("Missing column: score or _distance".to_string()))?
-        .as_any()
-        .downcast_ref::<arrow_array::Float32Array>()
-        .ok_or_else(|| AppError::Internal("Invalid type for column: score".to_string()))?;
+        .ok_or_else(|| AppError::Internal("Missing column: score or _distance".to_string()));
+
+    let score_array = if let Ok(score_array) = score_array_result {
+        Some(
+            score_array
+                .as_any()
+                .downcast_ref::<arrow_array::Float32Array>()
+                .ok_or_else(|| AppError::Internal("Invalid type for column: score".to_string()))?,
+        )
+    } else {
+        None
+    };
 
     let mut res = Vec::with_capacity(batch.num_rows());
 
@@ -268,13 +306,14 @@ fn map_batch_to_imgsearchresult(batch: &RecordBatch) -> Result<Vec<ImgSearchResu
         let path = path_array.value(row).to_string();
         let root = root_array.value(row).to_string();
         let thumbnail = thumbnail_array.value(row).to_string();
+        let idxed = idxed_array.value(row);
         let desc = if desc_array.is_null(row) {
             None
         } else {
             Some(desc_array.value(row).to_string())
         };
 
-        let score = score_array.value(row);
+        let score = score_array.map(|score_array| score_array.value(row));
 
         res.push(ImgSearchResult {
             id,
@@ -282,6 +321,7 @@ fn map_batch_to_imgsearchresult(batch: &RecordBatch) -> Result<Vec<ImgSearchResu
             path,
             root,
             thumbnail,
+            idxed,
             desc,
             score,
         });
@@ -290,6 +330,18 @@ fn map_batch_to_imgsearchresult(batch: &RecordBatch) -> Result<Vec<ImgSearchResu
     Ok(res)
 }
 
+pub async fn get_all(table: Arc<Table>) -> Result<Vec<ImgSearchResult>, AppError> {
+    let stream = table.query().execute().await?;
+    let mut results = Vec::new();
+
+    // 消费 stream
+    futures::pin_mut!(stream);
+    while let Some(batch) = stream.try_next().await? {
+        let mut items = map_batch_to_imgsearchresult(&batch)?;
+        results.append(&mut items);
+    }
+    Ok(results)
+}
 pub async fn search(
     table: Arc<Table>,
     v: &[f32],
@@ -385,8 +437,13 @@ pub async fn update_path(table: Arc<Table>, old: &str, new: &str) -> Result<(), 
     table
         .update()
         .column("path", new)
-        .only_if(format!("path = {old}"))
+        .only_if(format!("path = '{old}'"))
         .execute()
         .await?;
+    Ok(())
+}
+
+pub async fn remove_by_root(table: Arc<Table>, root: &str) -> Result<(), AppError> {
+    table.delete(&format!("root = '{root}'")).await?;
     Ok(())
 }

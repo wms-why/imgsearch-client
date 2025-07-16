@@ -72,7 +72,7 @@ export async function addImgDir(imgDir: ImgDir, process?: (p: ImgDirProcessParam
 
 export async function removeImgDir(imgDirPath: string) {
     await ImgDirStore.delete(imgDirPath);
-    // removeRoot(imgDirPath);
+    invoke("remove_img_dir", { root: imgDirPath });
 }
 
 
