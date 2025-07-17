@@ -34,7 +34,7 @@ export default function ImagesPage() {
         ) : (
           <>
             {images.map((image) => (
-              <div key={image.path} className="flex items-center gap-4 p-2 hover:bg-gray-100 rounded">
+              <div key={image.path} className="flex items-center gap-4 p-2 hover:bg-gray-100 rounded" title={image.path}>
                 <img
                   src={convertFileSrc(image.thumbnail)}
                   alt={image.name}

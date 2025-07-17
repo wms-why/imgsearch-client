@@ -1,6 +1,6 @@
 use std::{
     io::{BufWriter, IntoInnerError},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use crate::{
@@ -18,8 +18,11 @@ use super::error::AppError;
 
 const IMAGE_WIDTH: u32 = 512;
 
-pub fn save_local(root: &str, bs: &[u8], format: ImageFormat) -> Result<PathBuf, AppError> {
-    let root_hex = sign(root.as_bytes());
+fn guess_format(buf: &[u8]) -> Result<image::ImageFormat, AppError> {
+    Ok(image::guess_format(buf)?)
+}
+fn save_local(root: &Path, bs: &[u8], format: ImageFormat) -> Result<PathBuf, AppError> {
+    let root_hex = sign(root.display().to_string().as_bytes());
     let mut p = path_utils::thumbnail_dir(&root_hex)?.join(format!(
         "{}.{}",
         uuid_utils::get(),
@@ -47,8 +50,20 @@ pub fn remove_dir(root: &str) -> Result<(), AppError> {
     Ok(())
 }
 
-pub fn guess_format(buf: &[u8]) -> Result<image::ImageFormat, AppError> {
-    Ok(image::guess_format(buf)?)
+pub fn gen_thumbnail(root: &str, path: &Path) -> Result<(String, PathBuf), AppError> {
+    let source_bs = std::fs::read(path)?;
+
+    let sign = path_utils::sign(&source_bs);
+
+    let format = guess_format(source_bs.as_slice())?;
+    let bs = downscale(&source_bs, format)?;
+
+    let thumbnail_path = match bs {
+        Some(bs) => save_local(Path::new(root), bs.as_ref(), format)?,
+        None => save_local(Path::new(root), &source_bs, format)?,
+    };
+
+    Ok((sign, thumbnail_path))
 }
 
 /**

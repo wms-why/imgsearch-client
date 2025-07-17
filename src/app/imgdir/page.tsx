@@ -14,8 +14,7 @@ import CheckGuide from "@/components/check-guide";
 
 export default function ImgdirPage({ afterAdd }: { afterAdd?: () => Promise<void> }) {
   const [imgDirs, setImgDirs] = useState<ImgDir[]>([]);
-  const [newDir, setNewDir] = useState<ImgDir>({ name: "", root: "", enableRename: false });
-  const [loading, setLoading] = useState(false);
+  const [newDir, setNewDir] = useState<ImgDir>({ name: "", root: "", enableRename: false, createTime: new Date() } as ImgDir);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const { toast } = useToast();
@@ -24,7 +23,6 @@ export default function ImgdirPage({ afterAdd }: { afterAdd?: () => Promise<void
   }, []);
 
   const loadImgDirs = async () => {
-    setLoading(true);
     try {
       const dirs = await getAll();
       setImgDirs(dirs);
@@ -34,15 +32,13 @@ export default function ImgdirPage({ afterAdd }: { afterAdd?: () => Promise<void
         description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
     }
   };
 
   const handDialogChange = (open: boolean) => {
     setDialogOpen(open);
     if (open) {
-      setNewDir({ name: "", root: "", enableRename: false });
+      setNewDir({ name: "", root: "", enableRename: false, createTime: new Date() });
     }
   }
 
@@ -78,22 +74,7 @@ export default function ImgdirPage({ afterAdd }: { afterAdd?: () => Promise<void
     }
 
     try {
-      await addImgDir(newDir, params => {
-
-        if (params.error) {
-          toast({
-            title: "Error",
-            description: params.error,
-            variant: "destructive",
-          })
-        } else {
-          toast({
-            title: "Processing New Image Directory",
-            description: `proccessing ${params.current}/${params.total}`,
-          });
-        }
-
-      }).catch(e => {
+      await addImgDir(newDir).catch(e => {
         toast({
           title: "Failed",
           description: e.message,

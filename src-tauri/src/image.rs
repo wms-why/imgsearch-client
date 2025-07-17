@@ -1,17 +1,36 @@
-use std::path::Path;
+use std::{
+    path::{Path, PathBuf},
+    sync::OnceLock,
+    time::Duration,
+};
 
 use itertools::multizip;
 use log::debug;
+use moka::future::Cache;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use crate::{
     error::AppError,
     image_idx::{self, update_path, update_path_prefix, ImgSearchResult},
-    image_utils, path_utils,
+    image_utils::{self, gen_thumbnail},
+    path_utils,
     server::{ImageIndexResp, ImageIndexer},
     AppState,
 };
+
+/**
+ * 当前 正在索引 的路径缓存，key = old_path, value =  manual_new_path
+ */
+static INDEXING_PATHS: OnceLock<Cache<String, Option<String>>> = OnceLock::new();
+
+fn get_indexing_paths() -> &'static Cache<String, Option<String>> {
+    INDEXING_PATHS.get_or_init(|| {
+        Cache::builder()
+            .time_to_live(Duration::from_secs(60))
+            .build()
+    })
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ImageInfo {
@@ -21,104 +40,73 @@ pub struct ImageInfo {
     pub created_at: u64,
 }
 
-#[derive(Deserialize, Clone, Debug)]
-pub struct ImageIdxModels {
-    #[serde(rename = "rootDir")]
-    pub root_dir: String,
-    pub paths: Vec<String>,
-    pub rename: bool,
-}
-
-#[tauri::command(rename_all = "snake_case")]
 pub async fn index_images(
-    mut model: ImageIdxModels,
+    root: &str,
+    paths: Vec<PathBuf>,
+    rename: bool,
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
     if state.server.read().await.is_none() {
         return Err(AppError::Auth("server not ready".to_string()));
     }
 
-    // let sever = state.server.as_ref().unwrap();
+    let mut thumbnails = Vec::with_capacity(paths.len());
+    let mut signs = Vec::with_capacity(paths.len());
+    let cache = get_indexing_paths();
 
-    let mut thumbnails = Vec::with_capacity(model.paths.len());
-    let mut signs = Vec::with_capacity(model.paths.len());
-
-    for path in model.paths.iter() {
-        let source_bs = std::fs::read(Path::new(path))?;
-
-        let sign = path_utils::sign(&source_bs);
+    for path in paths.iter() {
+        let (sign, thumbnail_path) = gen_thumbnail(root, path)?;
+        cache.insert(path.display().to_string(), None).await;
         signs.push(sign);
-
-        let format = image_utils::guess_format(source_bs.as_slice())?;
-        let bs = image_utils::downscale(&source_bs, format)?;
-
-        let thumbnail_path = match bs {
-            Some(bs) => image_utils::save_local(&model.root_dir, bs.as_ref(), format)?,
-            None => image_utils::save_local(&model.root_dir, &source_bs, format)?,
-        };
-
         thumbnails.push(thumbnail_path);
     }
 
     let server = state.server.read().await;
     let server = server.as_ref().unwrap().clone();
-    let r = server.indexes(&thumbnails, model.rename).await;
+    let r = server.indexes(&thumbnails, rename).await;
 
     let idxes = if let Ok(r) = r {
-        if model.rename {
-            let new_paths = model
-                .paths
-                .iter()
-                .zip(r.iter())
-                .map(|(p, r)| {
-                    if let Some(newname) = &r.name {
-                        let new_path = path_utils::rename(p, newname);
-                        if let Ok(new_path) = new_path {
-                            new_path.display().to_string()
-                        } else {
-                            log::error!("rename error: {}", new_path.err().unwrap());
-                            p.to_string()
-                        }
+        let new_paths = if rename {
+            let mut ps = Vec::with_capacity(paths.len());
+
+            for (p, r) in paths.into_iter().zip(r.iter()) {
+                ps.push(if let Some(newname) = &r.name {
+                    let new_path = path_utils::rename(p.as_path(), newname);
+                    if let Ok(new_path) = new_path {
+                        new_path
                     } else {
-                        p.to_string()
+                        log::error!("rename error: {}", new_path.err().unwrap());
+                        p.to_path_buf()
                     }
-                })
-                .collect::<Vec<_>>();
+                } else {
+                    p.to_path_buf()
+                });
+            }
 
-            model.paths = new_paths;
-        }
+            ps
+        } else {
+            let mut ps = Vec::with_capacity(paths.len());
+            for p in paths.iter() {
+                if let Some(Some(p)) = cache.get(p.as_path().to_str().unwrap()).await {
+                    ps.push(Path::new(p.as_str()).to_path_buf());
+                } else {
+                    ps.push(p.to_path_buf());
+                }
+            }
+            ps
+        };
 
-        multizip((model.paths, signs, thumbnails, r.into_iter()))
+        multizip((new_paths, signs, thumbnails, r.into_iter()))
             .map(|(p, sign, t, ImageIndexResp { vec, desc, .. })| {
-                let current_path = std::path::Path::new(p.as_str());
-                image_idx::ImgIdx::new(
-                    current_path.file_name().unwrap().display().to_string(),
-                    p.to_string(),
-                    model.root_dir.clone(),
-                    sign,
-                    t.as_path().display().to_string(),
-                    desc,
-                    vec,
-                )
+                image_idx::ImgIdx::new(p, root.to_string(), sign, t, desc, vec)
             })
             .collect::<Vec<_>>()
     } else {
         let err = r.unwrap_err();
         debug!("index_images error: {err:?}");
 
-        multizip((model.paths, signs, thumbnails))
-            .map(|(p, sign, t)| {
-                let current_path = std::path::Path::new(p.as_str());
-                image_idx::ImgIdx::new_empty(
-                    current_path
-                        .file_name()
-                        .unwrap().display().to_string(),
-                    p.to_string(),
-                    model.root_dir.clone(),
-                    sign,
-                    t.display().to_string(),
-                )
-            })
+        multizip((paths, signs, thumbnails))
+            .map(|(p, sign, t)| image_idx::ImgIdx::new_empty(p, root.to_string(), sign, t))
             .collect::<Vec<_>>()
     };
 
@@ -154,7 +142,22 @@ pub async fn show_all(state: State<'_, AppState>) -> Result<Vec<ImgSearchResult>
 }
 
 #[tauri::command]
-pub async fn remove_img_dir(root: String, state: State<'_, AppState>) -> Result<(), AppError> {
+pub async fn after_add_imgdir(
+    root: String,
+    rename: bool,
+    state: State<'_, AppState>,
+) -> Result<(), AppError> {
+    let imgs = path_utils::find_all_images(Path::new(&root))?;
+
+    for chunk in imgs.chunks(5) {
+        index_images(root.as_str(), chunk.to_vec(), rename, state.clone()).await?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn after_remove_imgdir(root: String, state: State<'_, AppState>) -> Result<(), AppError> {
     log::info!("remove img dir: {root}");
 
     image_idx::remove_by_root(state.img_idx_tbl.clone(), &root).await?;
@@ -164,20 +167,25 @@ pub async fn remove_img_dir(root: String, state: State<'_, AppState>) -> Result<
     Ok(())
 }
 
-#[derive(Deserialize)]
-pub struct DeleteModel {
-    path: String,
-}
-
 #[tauri::command]
-pub fn delete(model: DeleteModel, state: State<'_, AppState>) -> Result<(), String> {
-    // if let Some(image) = images.remove(&id) {
-    //     // 删除文件
-    //     fs::remove_file(&image.path).map_err(|e| format!("删除文件失败: {}", e))?;
-    //     Ok(())
-    // } else {
-    //     Err("找不到指定图片".to_string())
-    // }
+pub async fn delete(path: String, state: State<'_, AppState>) -> Result<(), AppError> {
+    let path_obj = Path::new(&path);
+
+    if path_obj.is_file() {
+        let r = image_idx::remove_path(state.img_idx_tbl.clone(), &path).await?;
+
+        if let Some(thumbnail) = r {
+            path_utils::remove_file(Path::new(&thumbnail))?;
+        }
+    } else {
+        let r = image_idx::remove_path_like(state.img_idx_tbl.clone(), &path).await?;
+
+        if !r.is_empty() {
+            for thumbnail in r {
+                path_utils::remove_file(Path::new(&thumbnail))?;
+            }
+        }
+    }
     Ok(())
 }
 
@@ -193,7 +201,14 @@ pub struct RenameModel {
 pub async fn rename(model: RenameModel, state: State<'_, AppState>) -> Result<(), AppError> {
     let new = Path::new(&model.new);
     if new.is_file() {
-        update_path(state.img_idx_tbl.clone(), &model.old, &model.new).await?;
+        // 过滤index的自动重命名所触发事件
+        let c = get_indexing_paths();
+
+        if (c.get(&model.old).await).is_some() {
+            c.insert(model.old, Some(model.new)).await;
+        } else {
+            update_path(state.img_idx_tbl.clone(), &model.old, &model.new).await?;
+        }
     } else if new.is_dir() {
         update_path_prefix(state.img_idx_tbl.clone(), &model.old, &model.new).await?;
     }
@@ -201,13 +216,28 @@ pub async fn rename(model: RenameModel, state: State<'_, AppState>) -> Result<()
 }
 
 #[tauri::command]
-pub fn create_files(model: Vec<String>, state: State<'_, AppState>) -> Result<(), String> {
-    // if let Some(image) = images.remove(&id) {
-    //     // 删除文件
-    //     fs::remove_file(&image.path).map_err(|e| format!("删除文件失败: {}", e))?;
-    //     Ok(())
-    // } else {
-    //     Err("找不到指定图片".to_string())
-    // }
+pub async fn modify_content(
+    root: String,
+    paths: Vec<String>,
+    rename: bool,
+    state: State<'_, AppState>,
+) -> Result<(), AppError> {
+    let paths = paths
+        .into_iter()
+        .filter(|p| Path::new(p).is_file())
+        .collect::<Vec<_>>();
+    for path in paths.chunks(5) {
+        // index_images(root.as_str(), chunk.to_vec(), rename, state.clone()).await?;
+        index_images(
+            &root,
+            path.iter()
+                .map(|p| Path::new(p).to_path_buf())
+                .collect::<Vec<_>>(),
+            rename,
+            state.clone(),
+        )
+        .await?;
+    }
+
     Ok(())
 }

@@ -21,6 +21,7 @@ mod server;
 mod uuid_utils;
 
 pub struct AppState {
+    // pub cache:
     pub server: RwLock<Option<Arc<server::imgsearch_server::ImgseachServer>>>,
     pub auth_store: Arc<Store<Wry>>,
     pub img_idx_tbl: Arc<lancedb::Table>,
@@ -34,7 +35,7 @@ impl AppState {
 }
 
 fn main() {
-    if let Err(e) = dotenvy::dotenv() {
+    if dotenvy::dotenv().is_err() {
         log::warn!("not .env fount");
     }
 
@@ -53,13 +54,13 @@ fn main() {
         )
         .plugin(tauri_plugin_http::init())
         .invoke_handler(tauri::generate_handler![
-            // guide::save_guide,
-            // image::search_images
-            image::index_images,
             image::search,
             image::rename,
+            image::delete,
+            image::modify_content,
             image::show_all,
-            image::remove_img_dir,
+            image::after_add_imgdir,
+            image::after_remove_imgdir,
             auth::after_apikey_set
         ])
         .plugin(tauri_plugin_fs::init())
@@ -68,6 +69,7 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .setup(|app| {
+
             let img_idx_tbl = tauri::async_runtime::block_on(async { db::init_db().await })
                 .expect("Failed to init db");
 

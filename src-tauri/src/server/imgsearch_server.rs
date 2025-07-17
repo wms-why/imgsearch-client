@@ -24,30 +24,30 @@ impl ImgseachServer {
 }
 
 impl ImageIndexer for ImgseachServer {
-    async fn index(
-        &self,
-        thumbnail_path: PathBuf,
-        rename: bool,
-    ) -> Result<ImageIndexResp, AppError> {
-        let form = reqwest::multipart::Form::new()
-            .file("thumbnail", thumbnail_path)
-            .await?
-            .text("rename", rename.to_string());
+    // async fn index(
+    //     &self,
+    //     thumbnail_path: PathBuf,
+    //     rename: bool,
+    // ) -> Result<ImageIndexResp, AppError> {
+    //     let form = reqwest::multipart::Form::new()
+    //         .file("thumbnail", thumbnail_path)
+    //         .await?
+    //         .text("rename", rename.to_string());
 
-        let r = self
-            .client
-            .post(format!("{}/api/image_index/v1", &self.host))
-            .bearer_auth(&self.apikey)
-            .multipart(form)
-            .send()
-            .await?;
+    //     let r = self
+    //         .client
+    //         .post(format!("{}/api/image_index/v1", &self.host))
+    //         .bearer_auth(&self.apikey)
+    //         .multipart(form)
+    //         .send()
+    //         .await?;
 
-        if r.status().is_success() {
-            Ok(r.json::<ImageIndexResp>().await?)
-        } else {
-            Err(judge_imgsearch_error(r).await)
-        }
-    }
+    //     if r.status().is_success() {
+    //         Ok(r.json::<ImageIndexResp>().await?)
+    //     } else {
+    //         Err(judge_imgsearch_error(r).await)
+    //     }
+    // }
 
     async fn indexes(
         &self,

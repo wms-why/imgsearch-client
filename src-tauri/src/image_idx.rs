@@ -1,4 +1,7 @@
-use std::sync::{Arc, OnceLock};
+use std::{
+    path::PathBuf,
+    sync::{Arc, OnceLock},
+};
 
 use crate::{error::AppError, uuid_utils};
 use arrow_array::{
@@ -33,41 +36,36 @@ pub struct ImgIdx {
 
 impl ImgIdx {
     pub fn new(
-        name: String,
-        path: String,
+        path: PathBuf,
         root: String,
         sign: String,
-        thumbnail: String,
+        thumbnail: PathBuf,
         desc: String,
         vec: Vec<f32>,
     ) -> Self {
+        let path = path.as_path();
         Self {
             id: uuid_utils::get(),
-            name,
-            path,
+            name: path.file_name().unwrap().display().to_string(),
+            path: path.display().to_string(),
             root,
             sign,
-            thumbnail,
+            thumbnail: thumbnail.display().to_string(),
             desc: Some(desc),
             idxed: true,
             vec: Some(vec),
         }
     }
 
-    pub fn new_empty(
-        name: String,
-        path: String,
-        root: String,
-        sign: String,
-        thumbnail: String,
-    ) -> Self {
+    pub fn new_empty(path: PathBuf, root: String, sign: String, thumbnail: PathBuf) -> Self {
+        let path = path.as_path();
         Self {
             id: uuid_utils::get(),
-            name,
-            path,
+            name: path.file_name().unwrap().display().to_string(),
+            path: path.display().to_string(),
             root,
             sign,
-            thumbnail,
+            thumbnail: thumbnail.display().to_string(),
             desc: None,
             idxed: false,
             vec: None,
@@ -132,6 +130,9 @@ async fn check_or_build_idx(table: Arc<Table>) -> Result<(), AppError> {
     Ok(())
 }
 
+/**
+ * 根据path，保存或插入
+ */
 pub async fn save_batch(table: Arc<Table>, records: Vec<ImgIdx>) -> Result<(), AppError> {
     let mut id_builder = StringBuilder::new();
     let mut name_builder = StringBuilder::new();
@@ -183,16 +184,6 @@ pub async fn save_batch(table: Arc<Table>, records: Vec<ImgIdx>) -> Result<(), A
 
     let batch = RecordBatch::try_new(
         schema.clone(),
-        /**
-        * id
-           name
-           path
-           root
-           sign
-           thumbnail
-           idxed
-           desc
-        */
         vec![
             Arc::new(id_builder.finish()) as ArrayRef,
             Arc::new(name_builder.finish()) as ArrayRef,
@@ -206,9 +197,17 @@ pub async fn save_batch(table: Arc<Table>, records: Vec<ImgIdx>) -> Result<(), A
         ],
     )?;
 
-    let reader = RecordBatchIterator::new(vec![batch].into_iter().map(Ok), schema.clone());
+    let reader = Box::new(RecordBatchIterator::new(
+        vec![batch].into_iter().map(Ok),
+        schema.clone(),
+    ));
 
-    table.add(reader).execute().await?;
+    let mut merge_insert = table.merge_insert(&["path"]);
+    merge_insert
+        .when_matched_update_all(None)
+        .when_not_matched_insert_all();
+
+    merge_insert.execute(reader).await?;
 
     let table = table.clone();
     tauri::async_runtime::spawn(async move {
@@ -446,4 +445,68 @@ pub async fn update_path(table: Arc<Table>, old: &str, new: &str) -> Result<(), 
 pub async fn remove_by_root(table: Arc<Table>, root: &str) -> Result<(), AppError> {
     table.delete(&format!("root = '{root}'")).await?;
     Ok(())
+}
+
+pub async fn remove_path(table: Arc<Table>, path: &str) -> Result<Option<String>, AppError> {
+    let mut query = table.query();
+    let qr = query.mut_query();
+    qr.select = Select::Columns(vec!["thumbnail".to_string()]);
+    qr.filter = Some(QueryFilter::Sql(format!("path = '{path}'")));
+
+    let stream = query.execute().await?;
+
+    let mut results = Vec::new();
+    // 消费 stream
+    futures::pin_mut!(stream);
+    while let Some(batch) = stream.try_next().await? {
+        let thumbnail_array = batch
+            .column_by_name("thumbnail")
+            .ok_or_else(|| AppError::Internal("Missing column: thumbnail".to_string()))?
+            .as_any()
+            .downcast_ref::<arrow_array::StringArray>()
+            .ok_or_else(|| AppError::Internal("Invalid type for column: thumbnail".to_string()))?;
+
+        for row in 0..batch.num_rows() {
+            let thumbnail = thumbnail_array.value(row).to_string();
+            results.push(thumbnail);
+        }
+    }
+
+    if let Some(p) = results.first() {
+        table.delete(&format!("path = '{path}'")).await?;
+        Ok(Some(p.clone()))
+    } else {
+        Ok(None)
+    }
+}
+
+pub async fn remove_path_like(table: Arc<Table>, path: &str) -> Result<Vec<String>, AppError> {
+    let mut query = table.query();
+    let qr = query.mut_query();
+    qr.select = Select::Columns(vec!["thumbnail".to_string()]);
+    let sql = format!("path like '{path}%'");
+    qr.filter = Some(QueryFilter::Sql(sql.clone()));
+
+    let stream = query.execute().await?;
+
+    let mut results = Vec::new();
+    // 消费 stream
+    futures::pin_mut!(stream);
+    while let Some(batch) = stream.try_next().await? {
+        let thumbnail_array = batch
+            .column_by_name("thumbnail")
+            .ok_or_else(|| AppError::Internal("Missing column: thumbnail".to_string()))?
+            .as_any()
+            .downcast_ref::<arrow_array::StringArray>()
+            .ok_or_else(|| AppError::Internal("Invalid type for column: thumbnail".to_string()))?;
+
+        for row in 0..batch.num_rows() {
+            let thumbnail = thumbnail_array.value(row).to_string();
+            results.push(thumbnail);
+        }
+    }
+
+    table.delete(&sql).await?;
+
+    Ok(results)
 }

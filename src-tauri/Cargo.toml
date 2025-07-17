@@ -41,6 +41,8 @@ sha2 = "0.10.9"
 hex = "0.4.3"
 itertools = "0.14.0"
 dotenvy = "0.15.7"
+walkdir = "2.5.0"
+moka = { version = "0.12.10", features = ["future"] }
 
 [features]
 # by default Tauri runs in production mode

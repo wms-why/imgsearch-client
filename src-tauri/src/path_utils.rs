@@ -1,6 +1,10 @@
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::OnceLock,
+};
 
 use sha2::{Digest, Sha256};
+use walkdir::WalkDir;
 
 use crate::error::AppError;
 
@@ -52,8 +56,7 @@ pub fn lancedb_dir() -> Result<PathBuf, AppError> {
  * 重命名文件
  * target_name: 新的文件名, 不包含后缀
  */
-pub fn rename(current_path: &str, target_name: &str) -> Result<PathBuf, AppError> {
-    let current_path = std::path::Path::new(current_path);
+pub fn rename(current_path: &Path, target_name: &str) -> Result<PathBuf, AppError> {
 
     let ext = if let Some(ext) = current_path.extension() {
         format!(".{}", ext.to_str().unwrap())
@@ -65,7 +68,11 @@ pub fn rename(current_path: &str, target_name: &str) -> Result<PathBuf, AppError
 
     let new_path = gen_new_valid_path(parent, target_name, &ext);
 
-    log::debug!("success rename from {} to {}", current_path.display(), new_path.display());
+    log::debug!(
+        "success rename from {} to {}",
+        current_path.display(),
+        new_path.display()
+    );
 
     std::fs::rename(current_path, &new_path)?;
 
@@ -84,8 +91,6 @@ fn gen_new_valid_path(parent: &Path, target_name: &str, ext: &str) -> PathBuf {
     new_path
 }
 
-
-
 /**
  * 文件签名
  */
@@ -93,7 +98,6 @@ pub fn sign_file(path: &Path) -> Result<String, AppError> {
     let data = std::fs::read(path)?;
     Ok(sign(&data))
 }
-
 
 /**
  * 文件签名
@@ -105,4 +109,38 @@ pub fn sign(data: &[u8]) -> String {
     let hash = hasher.finalize();
 
     hex::encode(hash)
+}
+static IMAGE_VALID_SUBFIX: OnceLock<Vec<&str>> = OnceLock::new();
+
+pub fn find_all_images(path: &Path) -> Result<Vec<PathBuf>, AppError> {
+    let subfix = IMAGE_VALID_SUBFIX.get_or_init(|| vec!["jpg", "jpeg", "png", "webp"]);
+
+    let mut images = vec![];
+
+    for entry in WalkDir::new(path) {
+        let entry = entry?;
+        let path = entry.path();
+
+        if path.is_file() {
+            let ext = path.extension().and_then(|s| s.to_str());
+
+            if let Some(ext) = ext {
+                if subfix.contains(&ext) {
+                    images.push(path.to_path_buf());
+                }
+            }
+        }
+    }
+    Ok(images)
+}
+
+impl From<walkdir::Error> for AppError {
+    fn from(e: walkdir::Error) -> Self {
+        AppError::Internal(e.to_string())
+    }
+}
+
+pub fn remove_file(ab_path: &Path) -> Result<(), AppError> {
+    std::fs::remove_file(ab_path)?;
+    Ok(())
 }

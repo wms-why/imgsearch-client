@@ -96,7 +96,7 @@ export function Menu() {
 
         <MenubarMenu>
           <MenubarTrigger >
-            <Link href="/images">Library</Link>
+            <Link href="/library">Library</Link>
           </MenubarTrigger>
         </MenubarMenu>
 
