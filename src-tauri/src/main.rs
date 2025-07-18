@@ -4,7 +4,7 @@
     windows_subsystem = "windows"
 )]
 
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
 use crate::server::init_server;
 use tauri::{async_runtime::RwLock, Manager, Wry};
@@ -39,6 +39,11 @@ fn main() {
         log::warn!("not .env fount");
     }
 
+    let log_level = match std::env::var("RUST_LOG") {
+        Ok(v) => v,
+        Err(_) => "info".to_string(),
+    };
+
     tauri::Builder::default()
         .plugin(
             tauri_plugin_log::Builder::new()
@@ -48,6 +53,7 @@ fn main() {
                         file_name: None,
                     },
                 ))
+                .level(log::LevelFilter::from_str(log_level.as_str()).unwrap())
                 .max_file_size(50_000 /* bytes */)
                 .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
                 .build(),

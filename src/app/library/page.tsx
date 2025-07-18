@@ -1,6 +1,5 @@
 'use client'
 import { getAll, SearchResult } from "@/data/image"
-import { AlbumArtwork } from "@/app/examples/music/components/album-artwork"
 import { useEffect, useState } from "react"
 import { useToast } from "@/components/ui/use-toast";
 import { convertFileSrc } from "@tauri-apps/api/core";

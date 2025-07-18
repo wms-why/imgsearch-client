@@ -1,5 +1,5 @@
 use std::{
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, OnceLock},
 };
 
@@ -36,7 +36,7 @@ pub struct ImgIdx {
 
 impl ImgIdx {
     pub fn new(
-        path: PathBuf,
+        path: &PathBuf,
         root: String,
         sign: String,
         thumbnail: PathBuf,
@@ -57,8 +57,7 @@ impl ImgIdx {
         }
     }
 
-    pub fn new_empty(path: PathBuf, root: String, sign: String, thumbnail: PathBuf) -> Self {
-        let path = path.as_path();
+    pub fn new_empty(path: &Path, root: String, sign: String, thumbnail: &Path) -> Self {
         Self {
             id: uuid_utils::get(),
             name: path.file_name().unwrap().display().to_string(),
@@ -447,44 +446,11 @@ pub async fn remove_by_root(table: Arc<Table>, root: &str) -> Result<(), AppErro
     Ok(())
 }
 
-pub async fn remove_path(table: Arc<Table>, path: &str) -> Result<Option<String>, AppError> {
-    let mut query = table.query();
-    let qr = query.mut_query();
-    qr.select = Select::Columns(vec!["thumbnail".to_string()]);
-    qr.filter = Some(QueryFilter::Sql(format!("path = '{path}'")));
-
-    let stream = query.execute().await?;
-
-    let mut results = Vec::new();
-    // 消费 stream
-    futures::pin_mut!(stream);
-    while let Some(batch) = stream.try_next().await? {
-        let thumbnail_array = batch
-            .column_by_name("thumbnail")
-            .ok_or_else(|| AppError::Internal("Missing column: thumbnail".to_string()))?
-            .as_any()
-            .downcast_ref::<arrow_array::StringArray>()
-            .ok_or_else(|| AppError::Internal("Invalid type for column: thumbnail".to_string()))?;
-
-        for row in 0..batch.num_rows() {
-            let thumbnail = thumbnail_array.value(row).to_string();
-            results.push(thumbnail);
-        }
-    }
-
-    if let Some(p) = results.first() {
-        table.delete(&format!("path = '{path}'")).await?;
-        Ok(Some(p.clone()))
-    } else {
-        Ok(None)
-    }
-}
-
 pub async fn remove_path_like(table: Arc<Table>, path: &str) -> Result<Vec<String>, AppError> {
     let mut query = table.query();
     let qr = query.mut_query();
     qr.select = Select::Columns(vec!["thumbnail".to_string()]);
-    let sql = format!("path like '{path}%'");
+    let sql = format!("path = '{path}' or path like '{path}%'");
     qr.filter = Some(QueryFilter::Sql(sql.clone()));
 
     let stream = query.execute().await?;

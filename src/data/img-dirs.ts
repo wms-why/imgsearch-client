@@ -65,7 +65,7 @@ async function watchImgdir(root: string) {
 
             if (isKind(type, 'modify')) {
                 if (isKind(type.modify, "rename")) {
-                    invoke("rename", { model: { path: event.paths[0], newPath: event.paths[1] } })
+                    invoke("rename", { model: { old: event.paths[0], new: event.paths[1] } })
                     console.log("modify rename", event.paths);
                 } else {
 
@@ -83,18 +83,20 @@ async function watchImgdir(root: string) {
                     modifyAnyTimeout = setTimeout(() => {
                         ImgDirStore.get<ImgDir>(root).then((imgdir) => {
                             imgdir = imgdir!;
-                            invoke("modify_content", { root: root, path: modifyAnyList, rename: imgdir.enableRename });
+                            invoke("modify_content", { root: root, paths: modifyAnyList, rename: imgdir.enableRename });
+
+                            console.log("modify any success", modifyAnyList);
+                            modifyAnyTimeout = null;
+                            modifyAnyList.length = 0;
                         });
-                        console.log("modify any success", modifyAnyList);
-                        modifyAnyTimeout = null;
-                        modifyAnyList.length = 0;
+
                     }, 5000);
                 }
             }
 
             if (isKind(type, 'remove')) {
                 console.log("remove file", event.paths);
-                invoke("remove", { path: event.paths });
+                invoke("delete", { path: event.paths[0] });
             }
 
         },

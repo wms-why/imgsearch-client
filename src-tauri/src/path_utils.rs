@@ -57,7 +57,6 @@ pub fn lancedb_dir() -> Result<PathBuf, AppError> {
  * target_name: 新的文件名, 不包含后缀
  */
 pub fn rename(current_path: &Path, target_name: &str) -> Result<PathBuf, AppError> {
-
     let ext = if let Some(ext) = current_path.extension() {
         format!(".{}", ext.to_str().unwrap())
     } else {
@@ -112,8 +111,11 @@ pub fn sign(data: &[u8]) -> String {
 }
 static IMAGE_VALID_SUBFIX: OnceLock<Vec<&str>> = OnceLock::new();
 
+fn get_valid_subfix() -> &'static Vec<&'static str> {
+    IMAGE_VALID_SUBFIX.get_or_init(|| vec!["jpg", "jpeg", "png", "webp"])
+}
 pub fn find_all_images(path: &Path) -> Result<Vec<PathBuf>, AppError> {
-    let subfix = IMAGE_VALID_SUBFIX.get_or_init(|| vec!["jpg", "jpeg", "png", "webp"]);
+    let subfix = get_valid_subfix();
 
     let mut images = vec![];
 
@@ -132,6 +134,20 @@ pub fn find_all_images(path: &Path) -> Result<Vec<PathBuf>, AppError> {
         }
     }
     Ok(images)
+}
+pub fn is_support_file(path: &Path) -> bool {
+    if path.is_dir() {
+        return false;
+    }
+
+    let subfix = get_valid_subfix();
+    let ext = path.extension().and_then(|s| s.to_str());
+
+    if let Some(ext) = ext {
+        subfix.contains(&ext)
+    } else {
+        false
+    }
 }
 
 impl From<walkdir::Error> for AppError {
