@@ -55,11 +55,8 @@ export function Menu() {
           <Dialog modal={false}>
             <MenubarContent>
 
-              {/* <MenubarItem>
-                <Link href="/imgdir">Image Directory</Link>
-              </MenubarItem> */}
               <MenubarItem>
-                <Link href="/guide">Guide</Link>
+                <Link href="/token">Token</Link>
               </MenubarItem>
 
               <MenubarItem>
@@ -99,8 +96,6 @@ export function Menu() {
             <Link href="/library">Library</Link>
           </MenubarTrigger>
         </MenubarMenu>
-
-
 
         <MenuModeToggle />
         {/* 

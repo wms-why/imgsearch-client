@@ -90,13 +90,13 @@ fn gen_new_valid_path(parent: &Path, target_name: &str, ext: &str) -> PathBuf {
     new_path
 }
 
-/**
- * 文件签名
- */
-pub fn sign_file(path: &Path) -> Result<String, AppError> {
-    let data = std::fs::read(path)?;
-    Ok(sign(&data))
-}
+
+// 文件签名
+
+// pub fn sign_file(path: &Path) -> Result<String, AppError> {
+//     let data = std::fs::read(path)?;
+//     Ok(sign(&data))
+// }
 
 /**
  * 文件签名

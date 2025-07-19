@@ -43,6 +43,6 @@ export async function saveUserInfo(userInfo: LoginResp) {
     await AuthStore.set("apikey", userInfo.token);
     await AuthStore.set("user", userInfo);
 
-    invoke("after_apikey");
+    invoke("after_apikey_set");
 
 }

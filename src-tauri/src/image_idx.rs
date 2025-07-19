@@ -36,14 +36,13 @@ pub struct ImgIdx {
 
 impl ImgIdx {
     pub fn new(
-        path: &PathBuf,
+        path: &Path,
         root: String,
         sign: String,
         thumbnail: PathBuf,
         desc: String,
         vec: Vec<f32>,
     ) -> Self {
-        let path = path.as_path();
         Self {
             id: uuid_utils::get(),
             name: path.file_name().unwrap().display().to_string(),
@@ -432,9 +431,11 @@ pub async fn update_path_prefix(table: Arc<Table>, old: &str, new: &str) -> Resu
 }
 
 pub async fn update_path(table: Arc<Table>, old: &str, new: &str) -> Result<(), AppError> {
+    let newname = Path::new(new).file_name().unwrap().to_str().unwrap();
     table
         .update()
-        .column("path", new)
+        .column("path", format!("'{new}'"))
+        .column("name", format!("'{newname}'"))
         .only_if(format!("path = '{old}'"))
         .execute()
         .await?;
@@ -473,6 +474,6 @@ pub async fn remove_path_like(table: Arc<Table>, path: &str) -> Result<Vec<Strin
     }
 
     table.delete(&sql).await?;
-
+ 
     Ok(results)
 }

@@ -1,5 +1,5 @@
 use std::{
-    path::{Path, PathBuf},
+    path::Path,
     sync::{Arc, OnceLock},
     time::Duration,
 };
@@ -43,7 +43,7 @@ pub struct ImageInfo {
 
 pub async fn index_images(
     root: &str,
-    paths: Vec<PathBuf>,
+    paths: Vec<&Path>,
     rename: bool,
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
@@ -66,7 +66,7 @@ pub async fn index_images(
 
     let paths = paths
         .iter()
-        .filter(|p| cache.contains_key(p.as_path().to_str().unwrap()))
+        .filter(|p| cache.contains_key(p.to_str().unwrap()))
         .collect::<Vec<_>>();
 
     if paths.is_empty() {
@@ -77,7 +77,7 @@ pub async fn index_images(
 
     let paths = paths
         .iter()
-        .filter(|p| cache.contains_key(p.as_path().to_str().unwrap()))
+        .filter(|p| cache.contains_key(p.to_str().unwrap()))
         .collect::<Vec<_>>();
 
     if paths.is_empty() {
@@ -90,7 +90,7 @@ pub async fn index_images(
 
             for (p, r) in paths.iter().zip(r.iter()) {
                 ps.push(if let Some(newname) = &r.name {
-                    let new_path = path_utils::rename(p.as_path(), newname);
+                    let new_path = path_utils::rename(p, newname);
                     if let Ok(new_path) = new_path {
                         new_path
                     } else {
@@ -106,7 +106,7 @@ pub async fn index_images(
         } else {
             let mut ps = Vec::with_capacity(paths.len());
             for p in paths.iter() {
-                if let Some(Some(p)) = cache.get(p.as_path().to_str().unwrap()).await {
+                if let Some(Some(p)) = cache.get(p.to_str().unwrap()).await {
                     ps.push(Path::new(p.as_str()).to_path_buf());
                 } else {
                     ps.push(p.to_path_buf());
@@ -126,14 +126,10 @@ pub async fn index_images(
 
         multizip((&paths, signs, thumbnails))
             .map(|(p, sign, t)| {
-                image_idx::ImgIdx::new_empty(p.as_path(), root.to_string(), sign, t.as_path())
+                image_idx::ImgIdx::new_empty(p, root.to_string(), sign, t.as_path())
             })
             .collect::<Vec<_>>()
     };
-
-    for p in paths.iter() {
-        cache.invalidate(p.as_path().to_str().unwrap()).await
-    }
 
     image_idx::save_batch(state.img_idx_tbl.clone(), idxes).await?;
 
@@ -194,13 +190,22 @@ pub async fn after_add_imgdir(
         } else {
             imgs.drain(0..)
         };
+
         index_images(
             root.as_str(),
-            chunk.collect::<Vec<_>>(),
+            chunk
+                .as_ref()
+                .iter()
+                .map(|p| p.as_path())
+                .collect::<Vec<_>>(),
             rename,
             state.clone(),
         )
         .await?;
+
+        for p in chunk.as_ref() {
+            cache.invalidate(p.to_str().unwrap()).await;
+        }
     }
     Ok(())
 }
@@ -275,7 +280,6 @@ pub async fn modify_content(
     for p in paths.iter() {
         c.insert(p.clone(), None).await;
     }
-
     loop {
         paths = paths
             .into_iter()
@@ -293,12 +297,15 @@ pub async fn modify_content(
 
         index_images(
             &root,
-            path.map(|p| Path::new(&p).to_path_buf())
-                .collect::<Vec<_>>(),
+            path.as_ref().iter().map(Path::new).collect::<Vec<_>>(),
             rename,
             state.clone(),
         )
         .await?;
+
+        for p in path.as_ref() {
+            c.invalidate(p).await;
+        }
     }
 
     Ok(())

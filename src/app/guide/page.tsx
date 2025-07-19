@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import { get, GuideType, next } from "@/data/guide";
 import Link from "next/link";
 import ImgdirPage from "../imgdir/page";
-import { checkApiKey, saveUserInfo } from "@/data/auth";
+import TokenPage from "../token/page";
+import { getApikey } from "@/data/auth";
 import { getAll } from "@/data/img-dirs";
 
 interface StepInfo {
@@ -37,7 +37,6 @@ const steps: StepInfo[] = [
 export default function GuidePage() {
   const [step, setStep] = useState<GuideType>("auth");
   const [stepInfo, setStepInfo] = useState<StepInfo>();
-  const [apiKey, setApiKey] = useState("");
   const [validError, setValidError] = useState<string | null>();
   const { toast } = useToast();
 
@@ -60,15 +59,14 @@ export default function GuidePage() {
   const stepValid = async () => {
     setValidError(null);
     if (step === "auth") {
-      const r = await checkApiKey(apiKey);
+      let apikey = await getApikey();
 
-      if (typeof r === 'string') {
-        setValidError("check apikey failed: " + r);
+      if (apikey === undefined) {
+        setValidError("apikey is empty");
         return false;
-      } else {
-        saveUserInfo(r);
-        return true;
       }
+
+      return true;
     }
 
     if (step === "imgdir") {
@@ -78,8 +76,9 @@ export default function GuidePage() {
 
       if (!valid) {
         setValidError("image dirs is empty");
+        return false;
       }
-      return valid;
+      return true;
     }
 
     return false;
@@ -107,31 +106,7 @@ export default function GuidePage() {
       <h1 className="font-bold text-3xl">{stepInfo?.order}.Guide - {stepInfo?.title}</h1>
 
       {step === 'auth' && (
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle className="text-2xl">Step 1: API Key Setup</CardTitle>
-            <CardDescription>
-              Please enter your API key to continue
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Input
-              placeholder="Enter your API Key"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-            />
-            <p className="text-sm text-muted-foreground">
-              Don't have an API key?{' '}
-              <Link
-                href="https://imgsearch.dev/blog/how-to-get-api-key?ref=imgsearch-client"
-                target="_blank"
-                className="text-primary hover:underline"
-              >
-                Get one here
-              </Link>
-            </p>
-          </CardContent>
-        </Card>
+        <TokenPage />
       )}
 
       {step === 'imgdir' && (

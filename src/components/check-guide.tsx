@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import { isFinished } from "@/data/guide";
-import { onStartup as imgDirsStartup } from "@/data/img-dirs";
 import { useRouter } from "next/navigation"; // 注意：app目录要用 next/navigation
 
 export default function CheckGuide() {
