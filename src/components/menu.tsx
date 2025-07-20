@@ -60,6 +60,10 @@ export function Menu() {
               </MenubarItem>
 
               <MenubarItem>
+                <Link href="/guide">Guide</Link>
+              </MenubarItem>
+
+              <MenubarItem>
                 <Link href="/terms">Terms of Service</Link>
               </MenubarItem>
 

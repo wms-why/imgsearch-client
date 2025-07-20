@@ -12,6 +12,10 @@ export const metadata: Metadata = {
   description: "Authentication forms built using the components.",
 }
 
+/**
+ * 未使用
+ * @returns 
+ */
 export default function AuthenticationPage() {
   return (
     <>

@@ -1,6 +1,4 @@
 import Image from "next/image"
-import { PlusCircledIcon } from "@radix-ui/react-icons"
-
 import { cn } from "@/lib/utils"
 import {
   ContextMenu,
@@ -12,7 +10,8 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
-import { convertFileSrc } from "@tauri-apps/api/core"
+import { convertFileSrc, invoke } from "@tauri-apps/api/core"
+import { useToast } from "@/components/ui/use-toast"
 
 export interface Album {
   name: string
@@ -56,13 +55,19 @@ export function AlbumArtwork({
 }: AlbumArtworkProps) {
   let cover = convertFileSrc(album.cover);
 
+  const { toast } = useToast();
+
+  const openDir = async () => {
+
+  };
+
   return (
     <div className={cn("space-y-3", className)} {...props}>
-      {/* <ContextMenu>
+      <ContextMenu>
         <ContextMenuTrigger>
           <div className="overflow-hidden rounded-md">
             <Image
-              src={album.cover}
+              src={cover}
               alt={album.name}
               width={width}
               height={height}
@@ -72,10 +77,14 @@ export function AlbumArtwork({
               )}
             />
           </div>
+          <div className="space-y-1 text-sm">
+            <h3 className="font-medium leading-none">{album.name}</h3>
+            <p className="text-xs text-muted-foreground">{album.desc} | {album.score}</p>
+          </div>
         </ContextMenuTrigger>
         <ContextMenuContent className="w-40">
-          <ContextMenuItem>Add to Library</ContextMenuItem>
-          <ContextMenuSub>
+          <ContextMenuItem onClick={openDir}>Open</ContextMenuItem>
+          {/* <ContextMenuSub>
             <ContextMenuSubTrigger>Add to Playlist</ContextMenuSubTrigger>
             <ContextMenuSubContent className="w-48">
               <ContextMenuItem>
@@ -108,26 +117,11 @@ export function AlbumArtwork({
           <ContextMenuItem>Create Station</ContextMenuItem>
           <ContextMenuSeparator />
           <ContextMenuItem>Like</ContextMenuItem>
-          <ContextMenuItem>Share</ContextMenuItem>
+          <ContextMenuItem>Share</ContextMenuItem> */}
         </ContextMenuContent>
-      </ContextMenu> */}
+      </ContextMenu>
 
-      <div className="overflow-hidden rounded-md">
-        <Image
-          src={cover}
-          alt={album.name}
-          width={width}
-          height={height}
-          className={cn(
-            "h-auto w-auto object-cover transition-all hover:scale-105",
-            aspectRatio === "portrait" ? "aspect-[3/4]" : "aspect-square"
-          )}
-        />
-      </div>
-      <div className="space-y-1 text-sm">
-        <h3 className="font-medium leading-none">{album.name}</h3>
-        <p className="text-xs text-muted-foreground">{album.desc} | {album.score}</p>
-      </div>
+
     </div>
   )
 }

@@ -103,17 +103,36 @@ export default function GuidePage() {
 
   return (
     <div className="container flex flex-col items-center justify-center gap-6 py-10 md:py-20">
-      <h1 className="font-bold text-3xl">{stepInfo?.order}.Guide - {stepInfo?.title}</h1>
+      {/* <h1 className="font-bold text-3xl">{stepInfo?.order}.Guide - {stepInfo?.title}</h1> */}
 
-      {step === 'auth' && (
-        <TokenPage />
-      )}
+      <Card className="w-full md:2/3">
+        <CardHeader>
+          <CardTitle className="text-2xl  text-center">{stepInfo?.order}.Guide - {stepInfo?.title}</CardTitle>
+          <CardDescription className="text-center">
+            Please finish the guide to proceed
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {step === 'auth' && (
+            <TokenPage />
+          )}
 
-      {step === 'imgdir' && (
-        <ImgdirPage />
-      )}
+          {step === 'imgdir' && (
+            <ImgdirPage />
+          )}
 
-      {step === 'finished' && (
+          {step === 'finished' && (
+            <Button asChild className="w-full">
+              <Link href="/search">Start Searching</Link>
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+
+
+
+      {/* {step === 'finished' && (
         <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle className="text-2xl">Setup Complete</CardTitle>
@@ -122,13 +141,11 @@ export default function GuidePage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button asChild className="w-full">
-              <Link href="/search">Start Searching</Link>
-            </Button>
+            
           </CardContent>
         </Card>
 
-      )}
+      )} */}
 
 
       {validError && (

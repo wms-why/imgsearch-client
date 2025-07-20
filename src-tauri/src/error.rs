@@ -80,5 +80,3 @@ impl From<ArrowError> for AppError {
         AppError::Internal(format!("{err}"))
     }
 }
-
-// impl From<>

@@ -474,6 +474,6 @@ pub async fn remove_path_like(table: Arc<Table>, path: &str) -> Result<Vec<Strin
     }
 
     table.delete(&sql).await?;
- 
+
     Ok(results)
 }

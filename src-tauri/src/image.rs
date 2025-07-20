@@ -232,7 +232,7 @@ pub async fn delete(path: String, state: State<'_, AppState>) -> Result<(), AppE
 
     if !r.is_empty() {
         for thumbnail in r {
-            log::debug!("remove thumbnail: {}", thumbnail);
+            log::debug!("remove thumbnail: {thumbnail}");
             path_utils::remove_file(Path::new(&thumbnail))?;
         }
     }

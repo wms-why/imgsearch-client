@@ -43,6 +43,7 @@ itertools = "0.14.0"
 dotenvy = "0.15.7"
 walkdir = "2.5.0"
 moka = { version = "0.12.10", features = ["future"] }
+tauri-plugin-opener = "2.4.0"
 
 [features]
 # by default Tauri runs in production mode

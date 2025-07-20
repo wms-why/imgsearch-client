@@ -18,7 +18,7 @@ use super::error::AppError;
 
 const IMAGE_WIDTH: u32 = 512;
 
-fn guess_format(buf: &[u8]) -> Result<image::ImageFormat, AppError> {
+pub fn guess_format(buf: &[u8]) -> Result<image::ImageFormat, AppError> {
     Ok(image::guess_format(buf)?)
 }
 fn save_local(root: &Path, bs: &[u8], format: ImageFormat) -> Result<PathBuf, AppError> {

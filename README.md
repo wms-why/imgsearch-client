@@ -11,8 +11,27 @@ This software mainly provides semantic retrieval functionality for local images 
 - Semantic Image Retrieval 
 - Automatic Image Renaming (AI) 
 
+## Road map
+
+- [x] [ imgdir indexing ] indexing when imgdir added
+- [x] [ search images ] search
+- [x] [ remove indexing when imgdir removed ]
+
+- [x] [ imgdir listening ] listen for imgdir changes, include add\delete\modify\rename
+  - [x] [ add ] 
+  - [x] [ delete ] 
+  - [x] [ modify ]
+  - [x] [ rename ] 
+
+- [] [ search result on right click ]
+
+- [] [ file check on startup ] files more, files less, files changed
+- [] [ retry indexing failed images ] retry indexing failed images
+
+
 ## Last
 Currently in the early development stage, not available yet. Any ideas are welcome.
+
 
 
 # Development

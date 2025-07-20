@@ -82,7 +82,10 @@ impl ImageIndexer for ImgseachServer {
     async fn text_vectorize(&self, text: &str) -> Result<Vec<f32>, AppError> {
         let r = self
             .client
-            .get(format!("{}/api/text_vectorize/v1?text={}", &self.host, text))
+            .get(format!(
+                "{}/api/text_vectorize/v1?text={}",
+                &self.host, text
+            ))
             .bearer_auth(&self.apikey)
             .send()
             .await?;
