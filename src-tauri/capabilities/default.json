@@ -22,7 +22,7 @@
     "fs:allow-exists",
     "fs:allow-read-dir",
     "fs:allow-read",
-    "http:default",
+    "fs:allow-open",
     {
       "identifier": "http:default",
       "allow": [
@@ -31,6 +31,17 @@
         }
       ]
     },
-    "log:default"
+    "log:default",
+    "opener:allow-reveal-item-in-dir",
+    "opener:allow-default-urls",
+    "opener:allow-open-url",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        {
+          "path": "**"
+        }
+      ]
+    }
   ]
 }

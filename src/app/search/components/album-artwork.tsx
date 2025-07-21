@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/context-menu"
 import { convertFileSrc, invoke } from "@tauri-apps/api/core"
 import { useToast } from "@/components/ui/use-toast"
+import { openPath } from "@tauri-apps/plugin-opener";
+import { sep } from "@tauri-apps/api/path"
 
 export interface Album {
   name: string
@@ -59,6 +61,24 @@ export function AlbumArtwork({
 
   const openDir = async () => {
 
+    let dir = album.path.substring(0, album.path.lastIndexOf(sep()));
+    openPath(dir).catch(e => {
+      toast({
+        title: "Error",
+        description: e,
+        variant: "destructive",
+      });
+    });
+  };
+
+  const openFile = async () => {
+    openPath(album.path).catch(e => {
+      toast({
+        title: "Error",
+        description: e,
+        variant: "destructive",
+      });
+    });
   };
 
   return (
@@ -83,7 +103,9 @@ export function AlbumArtwork({
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent className="w-40">
-          <ContextMenuItem onClick={openDir}>Open</ContextMenuItem>
+          <ContextMenuItem onClick={openFile}>Open</ContextMenuItem>
+          <ContextMenuItem onClick={openDir}>Open Directory</ContextMenuItem>
+
           {/* <ContextMenuSub>
             <ContextMenuSubTrigger>Add to Playlist</ContextMenuSubTrigger>
             <ContextMenuSubContent className="w-48">
