@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 use tauri::http::StatusCode;
 use tauri_plugin_http::reqwest::{self, Response};
@@ -51,14 +51,14 @@ impl ImageIndexer for ImgseachServer {
 
     async fn indexes(
         &self,
-        params: &[PathBuf],
+        params: Vec<&Path>,
         rename: bool,
     ) -> Result<Vec<ImageIndexResp>, AppError> {
         let mut form = reqwest::multipart::Form::new();
 
         for (i, p) in params.iter().enumerate() {
             form = form
-                .file(format!("thumbnail_{i}"), p.as_path().to_str().unwrap())
+                .file(format!("thumbnail_{i}"), p.to_str().unwrap())
                 .await?;
         }
 

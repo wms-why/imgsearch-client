@@ -1,5 +1,5 @@
 use std::{
-    path::{Path, PathBuf},
+    path::Path,
     sync::{Arc, OnceLock},
 };
 
@@ -35,27 +35,6 @@ pub struct ImgIdx {
 }
 
 impl ImgIdx {
-    pub fn new(
-        path: &Path,
-        root: String,
-        sign: String,
-        thumbnail: PathBuf,
-        desc: String,
-        vec: Vec<f32>,
-    ) -> Self {
-        Self {
-            id: uuid_utils::get(),
-            name: path.file_name().unwrap().display().to_string(),
-            path: path.display().to_string(),
-            root,
-            sign,
-            thumbnail: thumbnail.display().to_string(),
-            desc: Some(desc),
-            idxed: true,
-            vec: Some(vec),
-        }
-    }
-
     pub fn new_empty(path: &Path, root: String, sign: String, thumbnail: &Path) -> Self {
         Self {
             id: uuid_utils::get(),
@@ -217,6 +196,72 @@ pub async fn save_batch(table: Arc<Table>, records: Vec<ImgIdx>) -> Result<(), A
     Ok(())
 }
 
+pub struct IndexModel {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+    pub desc: String,
+    pub vec: Vec<f32>,
+}
+pub async fn save_indexes(table: Arc<Table>, indexes: Vec<IndexModel>) -> Result<(), AppError> {
+    let mut id_builder = StringBuilder::new();
+    let mut name_builder = StringBuilder::new();
+    let mut path_builder = StringBuilder::new();
+    let mut idxed_builder = BooleanBuilder::new();
+    let mut desc_builder = StringBuilder::new();
+    let mut vec_builder = FixedSizeListBuilder::new(
+        Float32Builder::with_capacity(DIM as usize * indexes.len()),
+        DIM,
+    );
+
+    for IndexModel {
+        id,
+        name,
+        path,
+        desc,
+        vec,
+    } in indexes.into_iter()
+    {
+        id_builder.append_value(id);
+        name_builder.append_value(name);
+        path_builder.append_value(path);
+        idxed_builder.append_value(true);
+        desc_builder.append_value(desc);
+
+        vec.into_iter().for_each(|f| {
+            vec_builder.values().append_value(f);
+        });
+        vec_builder.append(true);
+    }
+
+    let schema = get_schema();
+
+    let batch = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(id_builder.finish()) as ArrayRef,
+            Arc::new(name_builder.finish()) as ArrayRef,
+            Arc::new(path_builder.finish()) as ArrayRef,
+            Arc::new(idxed_builder.finish()) as ArrayRef,
+            Arc::new(desc_builder.finish()) as ArrayRef,
+            Arc::new(vec_builder.finish()) as ArrayRef,
+        ],
+    )?;
+
+    let reader = Box::new(RecordBatchIterator::new(
+        vec![batch].into_iter().map(Ok),
+        schema.clone(),
+    ));
+
+    let mut merge_insert = table.merge_insert(&["id"]);
+    merge_insert
+        .when_matched_update_all(None)
+        .when_not_matched_insert_all();
+
+    merge_insert.execute(reader).await?;
+
+    Ok(())
+}
 #[derive(Clone, Deserialize, Debug, Serialize)]
 pub struct ImgSearchResult {
     pub id: String,
@@ -327,8 +372,16 @@ fn map_batch_to_imgsearchresult(batch: &RecordBatch) -> Result<Vec<ImgSearchResu
     Ok(res)
 }
 
-pub async fn get_all(table: Arc<Table>) -> Result<Vec<ImgSearchResult>, AppError> {
-    let stream = table.query().execute().await?;
+pub async fn get_all(
+    table: Arc<Table>,
+    idxed: Option<bool>,
+) -> Result<Vec<ImgSearchResult>, AppError> {
+    let mut stream = table.query();
+
+    if let Some(idxed) = idxed {
+        stream = stream.only_if(format!("idxed = '{}'", idxed));
+    };
+    stream.execute().await?;
     let mut results = Vec::new();
 
     // 消费 stream

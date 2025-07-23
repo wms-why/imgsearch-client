@@ -10,12 +10,10 @@ use crate::server::init_server;
 use tauri::{async_runtime::RwLock, Manager, Wry};
 use tauri_plugin_store::{Store, StoreExt};
 
-mod auth;
+mod auth_api;
 mod db;
 mod error;
-mod image;
-mod image_idx;
-mod image_utils;
+mod image_api;
 mod path_utils;
 mod server;
 mod uuid_utils;
@@ -24,6 +22,7 @@ pub struct AppState {
     // pub cache:
     pub server: RwLock<Option<Arc<server::imgsearch_server::ImgseachServer>>>,
     pub auth_store: Arc<Store<Wry>>,
+    pub imgdir_store: Arc<Store<Wry>>,
     pub img_idx_tbl: Arc<lancedb::Table>,
 }
 
@@ -61,14 +60,14 @@ fn main() {
         )
         .plugin(tauri_plugin_http::init())
         .invoke_handler(tauri::generate_handler![
-            image::search,
-            image::rename,
-            image::delete,
-            image::modify_content,
-            image::show_all,
-            image::after_add_imgdir,
-            image::after_remove_imgdir,
-            auth::after_apikey_set
+            image_api::search,
+            image_api::rename,
+            image_api::delete,
+            image_api::modify_content,
+            image_api::show_all,
+            image_api::after_add_imgdir,
+            image_api::after_remove_imgdir,
+            auth_api::after_apikey_set
         ])
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
@@ -80,6 +79,7 @@ fn main() {
                 .expect("Failed to init db");
 
             let auth_store = app.store("Auth.json")?;
+            let imgdir_store = app.store("ImgDirStore.json")?;
 
             let server = RwLock::new(init_server(auth_store.clone())?.map(Arc::new));
 
@@ -87,6 +87,7 @@ fn main() {
                 server,
                 img_idx_tbl: Arc::new(img_idx_tbl),
                 auth_store,
+                imgdir_store,
             });
             Ok(())
         })

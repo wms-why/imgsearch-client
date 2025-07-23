@@ -1,6 +1,6 @@
 pub mod imgsearch_server;
 
-use std::{path::PathBuf, sync::Arc};
+use std::{path::Path, sync::Arc};
 
 /**
  * 定义大模型服务接口，目前只支持imgsearch
@@ -22,7 +22,7 @@ pub struct ImageIndexResp {
 pub trait ImageIndexer {
     async fn indexes(
         &self,
-        params: &[PathBuf],
+        params: Vec<&Path>,
         rename: bool,
     ) -> Result<Vec<ImageIndexResp>, AppError>;
 

@@ -14,7 +14,7 @@ use image::{
     ImageEncoder, ImageFormat,
 };
 
-use super::error::AppError;
+use crate::error::AppError;
 
 const IMAGE_WIDTH: u32 = 512;
 

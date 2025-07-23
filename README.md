@@ -33,7 +33,6 @@ This software mainly provides semantic retrieval functionality for local images 
 Currently in the early development stage, not available yet. Any ideas are welcome.
 
 
-
 # Development
 
 This project based on [tauri-ui](https://github.com/agmmnn/tauri-ui).
