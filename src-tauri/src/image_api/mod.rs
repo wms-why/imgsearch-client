@@ -16,13 +16,14 @@ use crate::{
     error::AppError,
     path_utils,
     server::{ImageIndexResp, ImageIndexer},
-    AppState,
+    GlobalState,
 };
 
 pub use idx::get_table;
 use idx::{update_path, update_path_prefix, ImgSearchResult, IndexModel};
 use utils::gen_thumbnail;
 
+#[warn(dead_code)]
 #[derive(Deserialize)]
 struct ImgDir {
     name: String,
@@ -31,16 +32,16 @@ struct ImgDir {
     rename: bool,
 }
 
-pub async fn on_start_up(state: State<'_, AppState>) -> Result<(), AppError> {
+pub async fn after_start_up(state: State<'_, GlobalState>) -> Result<(), AppError> {
     let table = state.img_idx_tbl.clone();
     let imgdir_store = state.imgdir_store.clone();
 
     let cache = get_indexing_paths();
 
     let all: Vec<ImgSearchResult> = idx::get_all(table.clone(), Some(false)).await?;
-    all.iter().for_each(|p| {
-        cache.insert(p.path.clone(), None);
-    });
+    for p in all.iter() {
+        cache.insert(p.path.clone(), None).await;
+    }
     let r = all.into_iter().into_group_map_by(|r| r.root.clone());
 
     for (root, paths) in r.into_iter() {
@@ -50,7 +51,8 @@ pub async fn on_start_up(state: State<'_, AppState>) -> Result<(), AppError> {
 
         if r.is_none() {
             // 说明有残余的图片索引
-            idx::remove_path_like(table.clone(), &root).await;
+            log::warn!("root={} not found in imgdir_store", &root);
+            idx::remove_path_like(table.clone(), &root).await?;
             continue;
         }
 
@@ -124,7 +126,7 @@ fn get_indexing_paths() -> &'static Cache<String, Option<String>> {
 async fn save_empty_image(
     root: &str,
     paths: Vec<&Path>,
-    state: State<'_, AppState>,
+    state: State<'_, GlobalState>,
 ) -> Result<Vec<(String, String, String)>, AppError> {
     let mut thumbnails = Vec::with_capacity(paths.len());
     let mut signs = Vec::with_capacity(paths.len());
@@ -150,7 +152,7 @@ async fn save_empty_image(
 async fn index_images(
     ipt: &Vec<(String, String, String)>, // id, path, thumbnail
     rename: bool,
-    state: State<'_, AppState>,
+    state: State<'_, GlobalState>,
 ) -> Result<(), AppError> {
     if state.server.read().await.is_none() {
         return Err(AppError::Auth("server not ready".to_string()));
@@ -251,7 +253,7 @@ pub struct SearchModel {
 #[tauri::command]
 pub async fn search(
     model: SearchModel,
-    state: State<'_, AppState>,
+    state: State<'_, GlobalState>,
 ) -> Result<Vec<idx::ImgSearchResult>, AppError> {
     if state.server.read().await.is_none() {
         return Err(AppError::Auth("server not ready".to_string()));
@@ -264,7 +266,7 @@ pub async fn search(
 }
 
 #[tauri::command]
-pub async fn show_all(state: State<'_, AppState>) -> Result<Vec<ImgSearchResult>, AppError> {
+pub async fn show_all(state: State<'_, GlobalState>) -> Result<Vec<ImgSearchResult>, AppError> {
     let r = idx::get_all(state.img_idx_tbl.clone(), Some(true)).await?;
     Ok(r)
 }
@@ -273,7 +275,7 @@ pub async fn show_all(state: State<'_, AppState>) -> Result<Vec<ImgSearchResult>
 pub async fn after_add_imgdir(
     root: String,
     rename: bool,
-    state: State<'_, AppState>,
+    state: State<'_, GlobalState>,
 ) -> Result<(), AppError> {
     let imgs = path_utils::find_all_images(Path::new(&root))?;
 
@@ -327,7 +329,10 @@ pub async fn after_add_imgdir(
 }
 
 #[tauri::command]
-pub async fn after_remove_imgdir(root: String, state: State<'_, AppState>) -> Result<(), AppError> {
+pub async fn after_remove_imgdir(
+    root: String,
+    state: State<'_, GlobalState>,
+) -> Result<(), AppError> {
     log::info!("remove img dir: {root}");
 
     idx::remove_by_root(state.img_idx_tbl.clone(), &root).await?;
@@ -338,7 +343,7 @@ pub async fn after_remove_imgdir(root: String, state: State<'_, AppState>) -> Re
 }
 
 #[tauri::command]
-pub async fn delete(path: String, state: State<'_, AppState>) -> Result<(), AppError> {
+pub async fn delete(path: String, state: State<'_, GlobalState>) -> Result<(), AppError> {
     let path = Arc::new(path);
     let c = get_indexing_paths();
     let p = path.clone();
@@ -364,7 +369,7 @@ pub struct RenameModel {
     new: String,
 }
 #[tauri::command]
-pub async fn rename(model: RenameModel, state: State<'_, AppState>) -> Result<(), AppError> {
+pub async fn rename(model: RenameModel, state: State<'_, GlobalState>) -> Result<(), AppError> {
     let new = Path::new(&model.new);
     if new.is_file() {
         // 过滤index的自动重命名所触发事件
@@ -386,7 +391,7 @@ pub async fn modify_content(
     root: String,
     paths: Vec<String>,
     rename: bool,
-    state: State<'_, AppState>,
+    state: State<'_, GlobalState>,
 ) -> Result<(), AppError> {
     let paths = paths
         .into_iter()

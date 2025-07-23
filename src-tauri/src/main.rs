@@ -7,9 +7,9 @@
 use std::{str::FromStr, sync::Arc};
 
 use crate::server::init_server;
+use futures::future::FutureExt;
 use tauri::{async_runtime::RwLock, Manager, Wry};
 use tauri_plugin_store::{Store, StoreExt};
-
 mod auth_api;
 mod db;
 mod error;
@@ -18,7 +18,7 @@ mod path_utils;
 mod server;
 mod uuid_utils;
 
-pub struct AppState {
+pub struct GlobalState {
     // pub cache:
     pub server: RwLock<Option<Arc<server::imgsearch_server::ImgseachServer>>>,
     pub auth_store: Arc<Store<Wry>>,
@@ -26,7 +26,7 @@ pub struct AppState {
     pub img_idx_tbl: Arc<lancedb::Table>,
 }
 
-impl AppState {
+impl GlobalState {
     pub async fn set_server(&self, server: server::imgsearch_server::ImgseachServer) {
         let mut w = self.server.write().await;
         *w = Some(Arc::new(server));
@@ -78,17 +78,24 @@ fn main() {
             let img_idx_tbl = tauri::async_runtime::block_on(async { db::init_db().await })
                 .expect("Failed to init db");
 
+            let img_idx_tbl = Arc::new(img_idx_tbl);
             let auth_store = app.store("Auth.json")?;
             let imgdir_store = app.store("ImgDirStore.json")?;
 
             let server = RwLock::new(init_server(auth_store.clone())?.map(Arc::new));
 
-            app.manage(AppState {
+            app.manage(GlobalState {
                 server,
-                img_idx_tbl: Arc::new(img_idx_tbl),
+                img_idx_tbl,
                 auth_store,
                 imgdir_store,
             });
+
+            let state = app.state::<GlobalState>();
+            image_api::after_start_up(state).then(|r| {
+
+            });
+
             Ok(())
         })
         .run(tauri::generate_context!())

@@ -1,9 +1,9 @@
 use tauri::State;
 
-use crate::{error::AppError, server::init_server, AppState};
+use crate::{error::AppError, server::init_server, GlobalState};
 
 #[tauri::command]
-pub async fn after_apikey_set(state: State<'_, AppState>) -> Result<(), AppError> {
+pub async fn after_apikey_set(state: State<'_, GlobalState>) -> Result<(), AppError> {
     log::debug!("after_apikey_set");
     let auth_store = state.auth_store.clone();
     let server = init_server(auth_store.clone())?;

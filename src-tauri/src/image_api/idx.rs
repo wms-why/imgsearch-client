@@ -274,7 +274,7 @@ pub struct ImgSearchResult {
     pub score: Option<f32>,
 }
 
-fn map_batch_to_imgsearchresult(batch: &RecordBatch) -> Result<Vec<ImgSearchResult>, AppError> {
+fn map_batch_to_searchresult(batch: &RecordBatch) -> Result<Vec<ImgSearchResult>, AppError> {
     let id_array = batch
         .column_by_name("id")
         .ok_or_else(|| AppError::Internal("Missing column: id".to_string()))?
@@ -376,18 +376,22 @@ pub async fn get_all(
     table: Arc<Table>,
     idxed: Option<bool>,
 ) -> Result<Vec<ImgSearchResult>, AppError> {
-    let mut stream = table.query();
-
-    if let Some(idxed) = idxed {
-        stream = stream.only_if(format!("idxed = '{}'", idxed));
+    let stream = if let Some(idxed) = idxed {
+        table
+            .query()
+            .only_if(format!("idxed = {}", idxed))
+            .execute()
+            .await?
+            .into_arrow()?
+    } else {
+        table.query().execute().await?.into_arrow()?
     };
-    stream.execute().await?;
     let mut results = Vec::new();
 
     // 消费 stream
     futures::pin_mut!(stream);
     while let Some(batch) = stream.try_next().await? {
-        let mut items = map_batch_to_imgsearchresult(&batch)?;
+        let mut items = map_batch_to_searchresult(&batch)?;
         results.append(&mut items);
     }
     Ok(results)
@@ -409,7 +413,7 @@ pub async fn search(
     // 消费 stream
     futures::pin_mut!(stream);
     while let Some(batch) = stream.try_next().await? {
-        let mut items = map_batch_to_imgsearchresult(&batch)?;
+        let mut items = map_batch_to_searchresult(&batch)?;
         results.append(&mut items);
     }
     Ok(results)
