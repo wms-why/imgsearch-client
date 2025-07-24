@@ -1,6 +1,3 @@
-mod idx;
-mod utils;
-
 use std::{
     path::Path,
     sync::{Arc, OnceLock},
@@ -8,18 +5,19 @@ use std::{
 };
 
 use itertools::{multizip, Itertools};
+use lancedb::Table;
 use moka::future::Cache;
 use serde::Deserialize;
-use tauri::State;
+use tauri::Wry;
+use tauri_plugin_store::Store;
 
 use crate::{
     error::AppError,
+    image_command::{idx, utils, RenameModel, SearchModel},
     path_utils,
-    server::{ImageIndexResp, ImageIndexer},
-    GlobalState,
+    server::{imgsearch_server::ImgseachServer, ImageIndexResp, ImageIndexer},
 };
 
-pub use idx::get_table;
 use idx::{update_path, update_path_prefix, ImgSearchResult, IndexModel};
 use utils::gen_thumbnail;
 
@@ -32,10 +30,7 @@ struct ImgDir {
     rename: bool,
 }
 
-pub async fn after_start_up(state: State<'_, GlobalState>) -> Result<(), AppError> {
-    let table = state.img_idx_tbl.clone();
-    let imgdir_store = state.imgdir_store.clone();
-
+pub async fn on_start_up(table: Arc<Table>, imgdir_store: Arc<Store<Wry>>) -> Result<(), AppError> {
     let cache = get_indexing_paths();
 
     let all: Vec<ImgSearchResult> = idx::get_all(table.clone(), Some(false)).await?;
@@ -46,7 +41,6 @@ pub async fn after_start_up(state: State<'_, GlobalState>) -> Result<(), AppErro
 
     for (root, paths) in r.into_iter() {
         let imgdir_store = imgdir_store.clone();
-        let state = state.clone();
         let r = imgdir_store.get(&root);
 
         if r.is_none() {
@@ -126,7 +120,7 @@ fn get_indexing_paths() -> &'static Cache<String, Option<String>> {
 async fn save_empty_image(
     root: &str,
     paths: Vec<&Path>,
-    state: State<'_, GlobalState>,
+    img_idx_tbl: Arc<Table>,
 ) -> Result<Vec<(String, String, String)>, AppError> {
     let mut thumbnails = Vec::with_capacity(paths.len());
     let mut signs = Vec::with_capacity(paths.len());
@@ -143,24 +137,18 @@ async fn save_empty_image(
 
     let ids = idxes.iter().map(|i| i.id.clone()).collect::<Vec<_>>();
 
-    idx::save_batch(state.img_idx_tbl.clone(), idxes).await?;
+    idx::save_batch(img_idx_tbl, idxes).await?;
 
     Ok(multizip((ids, &paths, &thumbnails))
         .map(|(id, p, t)| (id, p.display().to_string(), t.display().to_string()))
         .collect::<Vec<_>>())
 }
 async fn index_images(
-    ipt: &Vec<(String, String, String)>, // id, path, thumbnail
+    ipt: &[(String, String, String)], // id, path, thumbnail
     rename: bool,
-    state: State<'_, GlobalState>,
+    server: &ImgseachServer,
+    img_idx_tbl: Arc<Table>,
 ) -> Result<(), AppError> {
-    if state.server.read().await.is_none() {
-        return Err(AppError::Auth("server not ready".to_string()));
-    }
-
-    let server = state.server.read().await;
-    let server = server.as_ref().unwrap().clone();
-
     let cache = get_indexing_paths();
 
     let ipt = ipt
@@ -240,42 +228,26 @@ async fn index_images(
         })
         .collect::<Vec<_>>();
 
-    idx::save_indexes(state.img_idx_tbl.clone(), r).await?;
+    idx::save_indexes(img_idx_tbl.clone(), r).await?;
 
     Ok(())
 }
 
-#[derive(Deserialize)]
-pub struct SearchModel {
-    keyword: String,
-    top: usize,
-}
-#[tauri::command]
 pub async fn search(
-    model: SearchModel,
-    state: State<'_, GlobalState>,
+    model: &SearchModel,
+    server: &ImgseachServer,
+    img_idx_tbl: Arc<Table>,
 ) -> Result<Vec<idx::ImgSearchResult>, AppError> {
-    if state.server.read().await.is_none() {
-        return Err(AppError::Auth("server not ready".to_string()));
-    }
-    let server = state.server.read().await;
-    let server = server.as_ref().unwrap().clone();
     let r = server.text_vectorize(&model.keyword).await?;
-    let r = idx::search(state.img_idx_tbl.clone(), &r, model.top).await?;
+    let r = idx::search(img_idx_tbl, &r, model.top).await?;
     Ok(r)
 }
 
-#[tauri::command]
-pub async fn show_all(state: State<'_, GlobalState>) -> Result<Vec<ImgSearchResult>, AppError> {
-    let r = idx::get_all(state.img_idx_tbl.clone(), Some(true)).await?;
-    Ok(r)
-}
-
-#[tauri::command]
-pub async fn after_add_imgdir(
+pub async fn index_imgdir(
     root: String,
     rename: bool,
-    state: State<'_, GlobalState>,
+    server: Option<&ImgseachServer>,
+    img_idx_tbl: Arc<Table>,
 ) -> Result<(), AppError> {
     let imgs = path_utils::find_all_images(Path::new(&root))?;
 
@@ -289,7 +261,7 @@ pub async fn after_add_imgdir(
         let ipt = &mut (save_empty_image(
             &root,
             chunks.iter().map(|p| p.as_path()).collect(),
-            state.clone(),
+            img_idx_tbl.clone(),
         )
         .await?);
 
@@ -317,9 +289,9 @@ pub async fn after_add_imgdir(
             .iter()
             .map(|p| Path::new(&p.1))
             .collect::<Vec<_>>();
-        let ipt = save_empty_image(&root, paths, state.clone()).await?;
+        let ipt = save_empty_image(&root, paths, img_idx_tbl.clone()).await?;
 
-        index_images(&ipt, rename, state.clone()).await?;
+        index_images(&ipt, rename, server, img_idx_tbl.clone()).await?;
 
         for p in ipt.iter() {
             cache.invalidate(p.1.as_str()).await;
@@ -328,28 +300,23 @@ pub async fn after_add_imgdir(
     Ok(())
 }
 
-#[tauri::command]
-pub async fn after_remove_imgdir(
-    root: String,
-    state: State<'_, GlobalState>,
-) -> Result<(), AppError> {
-    log::info!("remove img dir: {root}");
+pub async fn remove_root(root: &str, img_idx_tbl: Arc<Table>) -> Result<(), AppError> {
+    idx::remove_by_root(img_idx_tbl, root).await?;
+    utils::remove_dir(root)?;
 
-    idx::remove_by_root(state.img_idx_tbl.clone(), &root).await?;
-
-    utils::remove_dir(&root)?;
+    let c = get_indexing_paths();
+    let root = root.to_string();
+    let _ = c.invalidate_entries_if(move |key, _| key.starts_with(root.as_str()));
 
     Ok(())
 }
-
-#[tauri::command]
-pub async fn delete(path: String, state: State<'_, GlobalState>) -> Result<(), AppError> {
+pub async fn delete_path(path: String, img_idx_tbl: Arc<Table>) -> Result<(), AppError> {
     let path = Arc::new(path);
     let c = get_indexing_paths();
     let p = path.clone();
     let _ = c.invalidate_entries_if(move |key, _| key.starts_with(p.as_str()));
 
-    let r = idx::remove_path_like(state.img_idx_tbl.clone(), path.as_str()).await?;
+    let r = idx::remove_path_like(img_idx_tbl, path.as_str()).await?;
 
     if !r.is_empty() {
         for thumbnail in r {
@@ -363,13 +330,7 @@ pub async fn delete(path: String, state: State<'_, GlobalState>) -> Result<(), A
 /**
  * 重命名文件或者文件夹
  */
-#[derive(Deserialize)]
-pub struct RenameModel {
-    old: String,
-    new: String,
-}
-#[tauri::command]
-pub async fn rename(model: RenameModel, state: State<'_, GlobalState>) -> Result<(), AppError> {
+pub async fn rename(model: RenameModel, img_idx_tbl: Arc<Table>) -> Result<(), AppError> {
     let new = Path::new(&model.new);
     if new.is_file() {
         // 过滤index的自动重命名所触发事件
@@ -378,20 +339,20 @@ pub async fn rename(model: RenameModel, state: State<'_, GlobalState>) -> Result
         if (c.get(&model.old).await).is_some() {
             c.insert(model.old, Some(model.new)).await;
         } else {
-            update_path(state.img_idx_tbl.clone(), &model.old, &model.new).await?;
+            update_path(img_idx_tbl.clone(), &model.old, &model.new).await?;
         }
     } else if new.is_dir() {
-        update_path_prefix(state.img_idx_tbl.clone(), &model.old, &model.new).await?;
+        update_path_prefix(img_idx_tbl.clone(), &model.old, &model.new).await?;
     }
     Ok(())
 }
 
-#[tauri::command]
 pub async fn modify_content(
     root: String,
     paths: Vec<String>,
     rename: bool,
-    state: State<'_, GlobalState>,
+    server: Option<&ImgseachServer>,
+    img_idx_tbl: Arc<Table>,
 ) -> Result<(), AppError> {
     let paths = paths
         .into_iter()
@@ -404,12 +365,21 @@ pub async fn modify_content(
 
     let mut r: Vec<(String, String, String)> = Vec::new();
     for chunks in paths.chunks(5) {
-        let ipt =
-            &mut (save_empty_image(&root, chunks.iter().map(Path::new).collect(), state.clone())
-                .await?);
+        let ipt = &mut (save_empty_image(
+            &root,
+            chunks.iter().map(Path::new).collect(),
+            img_idx_tbl.clone(),
+        )
+        .await?);
 
         r.append(ipt);
     }
+
+    if server.is_none() {
+        return Err(AppError::Auth("server not ready".to_string()));
+    }
+
+    let server = server.unwrap();
 
     loop {
         r = r
@@ -432,9 +402,9 @@ pub async fn modify_content(
             .iter()
             .map(|p| Path::new(&p.1))
             .collect::<Vec<_>>();
-        let ipt = save_empty_image(&root, paths, state.clone()).await?;
+        let ipt = save_empty_image(&root, paths, img_idx_tbl.clone()).await?;
 
-        index_images(&ipt, rename, state.clone()).await?;
+        index_images(&ipt, rename, server, img_idx_tbl.clone()).await?;
 
         for p in chunk.as_ref() {
             cache.invalidate(p.1.as_str()).await;

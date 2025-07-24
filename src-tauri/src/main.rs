@@ -7,29 +7,28 @@
 use std::{str::FromStr, sync::Arc};
 
 use crate::server::init_server;
-use futures::future::FutureExt;
 use tauri::{async_runtime::RwLock, Manager, Wry};
 use tauri_plugin_store::{Store, StoreExt};
-mod auth_api;
+mod auth_command;
 mod db;
 mod error;
-mod image_api;
+mod image_command;
 mod path_utils;
 mod server;
 mod uuid_utils;
-
+use server::imgsearch_server::ImgseachServer;
 pub struct GlobalState {
     // pub cache:
-    pub server: RwLock<Option<Arc<server::imgsearch_server::ImgseachServer>>>,
+    pub server: Arc<RwLock<Option<ImgseachServer>>>,
     pub auth_store: Arc<Store<Wry>>,
     pub imgdir_store: Arc<Store<Wry>>,
     pub img_idx_tbl: Arc<lancedb::Table>,
 }
 
 impl GlobalState {
-    pub async fn set_server(&self, server: server::imgsearch_server::ImgseachServer) {
+    pub async fn set_server(&self, server: ImgseachServer) {
         let mut w = self.server.write().await;
-        *w = Some(Arc::new(server));
+        *w = Some(server);
     }
 }
 
@@ -60,14 +59,14 @@ fn main() {
         )
         .plugin(tauri_plugin_http::init())
         .invoke_handler(tauri::generate_handler![
-            image_api::search,
-            image_api::rename,
-            image_api::delete,
-            image_api::modify_content,
-            image_api::show_all,
-            image_api::after_add_imgdir,
-            image_api::after_remove_imgdir,
-            auth_api::after_apikey_set
+            image_command::search,
+            image_command::rename,
+            image_command::delete,
+            image_command::modify_content,
+            image_command::show_all,
+            image_command::after_add_imgdir,
+            image_command::after_remove_imgdir,
+            auth_command::after_apikey_set
         ])
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
@@ -82,19 +81,16 @@ fn main() {
             let auth_store = app.store("Auth.json")?;
             let imgdir_store = app.store("ImgDirStore.json")?;
 
-            let server = RwLock::new(init_server(auth_store.clone())?.map(Arc::new));
+            let server = Arc::new(RwLock::new(init_server(auth_store.clone())?));
 
             app.manage(GlobalState {
-                server,
-                img_idx_tbl,
-                auth_store,
-                imgdir_store,
+                server: server.clone(),
+                img_idx_tbl: img_idx_tbl.clone(),
+                auth_store: auth_store.clone(),
+                imgdir_store: imgdir_store.clone(),
             });
 
-            let state = app.state::<GlobalState>();
-            image_api::after_start_up(state).then(|r| {
-
-            });
+            image_command::after_start_up(img_idx_tbl, imgdir_store, server);
 
             Ok(())
         })
